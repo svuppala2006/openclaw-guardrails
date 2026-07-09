@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: guardrails-proxy-script
+  namespace: <YOUR_NAMESPACE>
+data:
+  proxy.py: |
+    # See ../proxy/proxy.py for the full annotated source.
+    # This ConfigMap is created from that file:
+    #   oc create configmap guardrails-proxy-script \
+    #     --from-file=proxy.py=nemoguardrails/proxy/proxy.py \
+    #     -n <YOUR_NAMESPACE> --dry-run=client -o yaml | oc apply -f -

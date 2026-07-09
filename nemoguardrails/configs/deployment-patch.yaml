@@ -1,0 +1,49 @@
+# Deployment patch for the openclaw pod.
+# Applies the guardrails proxy to the nemo-guardrails sidecar container.
+#
+# Usage:
+#   oc get deployment openclaw -n <NS> -o json | python3 patch-deployment.py | oc apply -f -
+#
+# Or apply the changes manually as described below.
+#
+# Changes to the nemo-guardrails container:
+#
+#   1. Add volume mount for the proxy script:
+#      volumeMounts:
+#        - name: guardrails-proxy-script
+#          mountPath: /opt/proxy
+#          readOnly: true
+#
+#   2. Change command to run the proxy:
+#      command: ["python3", "/opt/proxy/proxy.py"]
+#      args: []
+#
+#   3. Add environment variables:
+#      env:
+#        - name: LITELLM_URL
+#          value: "http://localhost:4000"
+#        - name: LITELLM_API_KEY
+#          value: "<YOUR_LITELLM_MASTER_KEY>"
+#        - name: NEMO_CONFIG_PATH
+#          value: "/etc/nemo-guardrails/default"
+#        - name: PROXY_PORT
+#          value: "8000"
+#        - name: HF_HOME
+#          value: "/tmp/hf_cache"
+#        - name: TRANSFORMERS_CACHE
+#          value: "/tmp/hf_cache"
+#
+# Changes to the pod spec:
+#
+#   4. Add volume for the proxy script:
+#      volumes:
+#        - name: guardrails-proxy-script
+#          configMap:
+#            name: guardrails-proxy-script
+#            defaultMode: 0755
+#
+# Changes to the openclaw-config ConfigMap:
+#
+#   5. Update the gateway's LiteLLM baseUrl to route through the proxy:
+#      models.providers.litellm.baseUrl: "http://localhost:8000/v1"
+#      (was: "http://localhost:4000/v1")

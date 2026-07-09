@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: litellm-config
+  namespace: <YOUR_NAMESPACE>
+  labels:
+    app: openclaw
+data:
+  config.yaml: |
+    model_list:
+      - model_name: claude-sonnet-4-6
+        litellm_params:
+          model: vertex_ai/claude-sonnet-4-6
+          vertex_project: "<YOUR_GCP_PROJECT>"
+          vertex_location: "<YOUR_GCP_REGION>"
+      - model_name: claude-haiku-4-5
+        litellm_params:
+          model: vertex_ai/claude-haiku-4-5
+          vertex_project: "<YOUR_GCP_PROJECT>"
+          vertex_location: "<YOUR_GCP_REGION>"
+
+    general_settings:
+      master_key: "<YOUR_LITELLM_MASTER_KEY>"
