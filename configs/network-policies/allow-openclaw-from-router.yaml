@@ -1,0 +1,21 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-openclaw-from-router
+  namespace: <YOUR_NAMESPACE>
+spec:
+  podSelector:
+    matchLabels:
+      app: openclaw
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              network.openshift.io/policy-group: ingress
+      ports:
+        - protocol: TCP
+          port: 18789
+        - protocol: TCP
+          port: 8443

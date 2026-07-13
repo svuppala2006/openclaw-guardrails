@@ -1,0 +1,21 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-nemo-from-openclaw
+  namespace: <YOUR_NAMESPACE>
+spec:
+  podSelector:
+    matchLabels:
+      app: openclaw-nemo-guardrails
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: openclaw
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 8000

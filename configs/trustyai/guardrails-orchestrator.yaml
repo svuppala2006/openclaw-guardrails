@@ -1,0 +1,22 @@
+apiVersion: trustyai.opendatahub.io/v1alpha1
+kind: GuardrailsOrchestrator
+metadata:
+  name: openclaw-guardrails
+  namespace: <YOUR_NAMESPACE>
+  labels:
+    app: trustyai-orchestrator
+    component: openclaw-monitoring
+spec:
+  orchestratorConfig: trustyai-orchestrator-config
+  enableBuiltInDetectors: true
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+  replicas: 1
+  serviceConfig:
+    type: ClusterIP
+    port: 8033

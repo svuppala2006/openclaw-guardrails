@@ -1,0 +1,95 @@
+apiVersion: policy.networking.k8s.io/v1alpha1
+kind: AdminNetworkPolicy
+metadata:
+  name: restrict-<YOUR_NAMESPACE>-egress
+spec:
+  priority: 50
+  subject:
+    pods:
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: <YOUR_NAMESPACE>
+      podSelector:
+        matchLabels:
+          app: openclaw
+  egress:
+    - action: Allow
+      name: allow-dns
+      ports:
+        - portNumber:
+            port: 5353
+            protocol: UDP
+        - portNumber:
+            port: 5353
+            protocol: TCP
+        - portNumber:
+            port: 53
+            protocol: UDP
+        - portNumber:
+            port: 53
+            protocol: TCP
+      to:
+        - namespaces:
+            matchLabels:
+              kubernetes.io/metadata.name: openshift-dns
+
+    - action: Allow
+      name: allow-kube-api
+      ports:
+        - portNumber:
+            port: 6443
+            protocol: TCP
+        - portNumber:
+            port: 443
+            protocol: TCP
+      to:
+        - networks:
+            - <KUBE_API_SERVICE_IP>/32
+            - <CONTROL_PLANE_IP_1>/32
+            - <CONTROL_PLANE_IP_2>/32
+            - <CONTROL_PLANE_IP_3>/32
+
+    - action: Allow
+      name: allow-local-llm
+      ports:
+        - portNumber:
+            port: 8443
+            protocol: TCP
+      to:
+        - namespaces:
+            matchLabels:
+              kubernetes.io/metadata.name: <YOUR_NAMESPACE>
+
+    - action: Allow
+      name: allow-trustyai-guardrails
+      ports:
+        - portNumber:
+            port: 8032
+            protocol: TCP
+        - portNumber:
+            port: 8034
+            protocol: TCP
+        - portNumber:
+            port: 8080
+            protocol: TCP
+      to:
+        - namespaces:
+            matchLabels:
+              kubernetes.io/metadata.name: <YOUR_NAMESPACE>
+
+    - action: Allow
+      name: allow-https-egress
+      ports:
+        - portNumber:
+            port: 443
+            protocol: TCP
+      to:
+        - networks:
+            - 0.0.0.0/0
+
+    - action: Deny
+      name: deny-all-other-egress
+      to:
+        - networks:
+            - 0.0.0.0/0
+            - "::/0"

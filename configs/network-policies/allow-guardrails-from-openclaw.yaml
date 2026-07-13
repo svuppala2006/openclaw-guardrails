@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-guardrails-from-openclaw
+  namespace: <YOUR_NAMESPACE>
+spec:
+  podSelector:
+    matchLabels:
+      app: openclaw-guardrails
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: openclaw
+      ports:
+        - protocol: TCP
+          port: 8032
+        - protocol: TCP
+          port: 8034
+        - protocol: TCP
+          port: 8080

@@ -1,0 +1,53 @@
+apiVersion: k8s.ovn.org/v1
+kind: EgressFirewall
+metadata:
+  # OVN-Kubernetes requires the EgressFirewall in a namespace to be named "default"
+  name: default
+  namespace: <YOUR_NAMESPACE>
+spec:
+  egress:
+  - type: Allow
+    to:
+      cidrSelector: <CLUSTER_DNS_IP>/32
+    ports:
+      - protocol: UDP
+        port: 53
+      - protocol: TCP
+        port: 53
+
+  - type: Allow
+    to:
+      cidrSelector: 10.0.0.0/8
+
+  - type: Allow
+    to:
+      cidrSelector: 172.30.0.0/16
+
+  - type: Allow
+    to:
+      cidrSelector: <OAUTH_ROUTER_IP>/32
+
+  - type: Allow
+    to:
+      dnsName: oauth2.googleapis.com
+
+  # Use explicit regional endpoint — OVN does NOT support wildcard DNS
+  - type: Allow
+    to:
+      dnsName: <VERTEX_AI_REGION>-aiplatform.googleapis.com
+
+  - type: Allow
+    to:
+      dnsName: accounts.google.com
+
+  - type: Allow
+    to:
+      dnsName: github.com
+
+  - type: Allow
+    to:
+      dnsName: api.github.com
+
+  - type: Deny
+    to:
+      cidrSelector: 0.0.0.0/0
