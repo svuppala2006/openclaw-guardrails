@@ -53,6 +53,7 @@ Security stack for OpenClaw on OpenShift, implementing defense in depth across i
 
 ## Documentation
 
+- [How Each Layer Works](docs/how-it-works.md) -- plain-language explanation of every security layer
 - [Architecture Overview](docs/architecture.md) -- full security stack design and traffic flows
 - [NeMo Guardrails](docs/nemo-guardrails.md) -- LLM input/output guardrails via sidecar proxy
 - [TrustyAI Orchestrator](docs/trustyai-orchestrator.md) -- content safety orchestration with built-in detectors

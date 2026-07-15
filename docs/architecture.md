@@ -2,6 +2,8 @@
 
 This document describes the defense-in-depth security architecture for OpenClaw, an AI agent gateway running on OpenShift. Multiple security layers work together to protect against prompt injection, data exfiltration, network-based attacks, and unauthorized access.
 
+For a plain-language explanation of how each layer works and why it secures OpenClaw, see [How Each Layer Works](how-it-works.md).
+
 ## Security Layers Overview
 
 The architecture applies defense in depth across five active layers, with three additional layers planned for future deployment.
