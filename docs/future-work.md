@@ -76,9 +76,32 @@ NVIDIA OpenShell is a kernel-level sandboxing runtime designed for AI agent work
 
 The core principle is treating all agent-generated code as untrusted, regardless of its source.
 
-### OpenShift Considerations
+### Intended Architecture: Per-Session Sandboxing
 
-OpenShell has an OpenShift-compatible driver, but it requires the **privileged SCC** to install its kernel-level hooks. This is the most permissive SCC in OpenShift and is unlikely to be granted on a shared cluster like NERC without strong justification.
+Running all of OpenClaw inside a single OpenShell sandbox (the "NemoClaw" approach) provides less isolation than running each agent session in its own sandbox. If one session is compromised, it has access to the gateway, other sessions, and credentials within that shared sandbox.
+
+The intended design is per-session isolation:
+
+```
+OpenClaw Gateway (VM or rootless container)
+  └── Agent session 1 → OpenShell sandbox 1
+  └── Agent session 2 → OpenShell sandbox 2
+  └── Agent session N → OpenShell sandbox N
+```
+
+The gateway runs in a VM or rootless container as its own user. Each agent or agent session spawns into a separate OpenShell sandbox with its own filesystem and network policies. A compromised agent can only damage its own sandbox.
+
+This is implemented via the **OpenClaw OpenShell-sandbox plugin**, not by wrapping the entire OpenClaw deployment in a single sandbox.
+
+### OpenShift Integration Path
+
+Pavel Anni's OpenShell plugin on OpenShift tutorial provides a working setup for deploying OpenShell sandboxes on OpenShift. This setup is automated in both the `claw-operator` and `claw-installer`. The operator path is the preferred integration for OpenShift — it handles sandbox lifecycle management and avoids manual setup.
+
+OpenShell requires the **privileged SCC** to install its kernel-level hooks. This is the most permissive SCC in OpenShift and is unlikely to be granted on a shared cluster like NERC without strong justification.
+
+### Current State
+
+The OpenShell community image of OpenClaw is from March 2025 and is not actively maintained. MacOS/podman compatibility is unconfirmed — testing so far has only been on RHEL.
 
 ### When This Matters Most
 
