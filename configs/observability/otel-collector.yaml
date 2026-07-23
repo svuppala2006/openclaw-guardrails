@@ -1,0 +1,31 @@
+apiVersion: opentelemetry.io/v1beta1
+kind: OpenTelemetryCollector
+metadata:
+  name: otel
+  namespace: <YOUR_NAMESPACE>
+spec:
+  config:
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:8080
+          http:
+            endpoint: 0.0.0.0:4318
+    processors:
+      batch: {}
+    exporters:
+      otlphttp/mlflow:
+        endpoint: http://mlflow.<YOUR_NAMESPACE>.svc:5000
+        tls:
+          insecure: true
+        headers:
+          x-mlflow-experiment-id: "0"
+      debug:
+        verbosity: basic
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [otlphttp/mlflow, debug]

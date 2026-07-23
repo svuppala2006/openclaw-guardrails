@@ -216,6 +216,20 @@ The OVN EgressFirewall provides DNS-based egress filtering, restricting which ex
 
 The combination of AdminNetworkPolicy (port-level) and EgressFirewall (DNS-level) ensures that even if an attacker gains code execution inside a pod, they cannot exfiltrate data to arbitrary external hosts. Only traffic to Google APIs (required for Vertex AI model access and OAuth) and GitHub (required for repository access) is permitted.
 
+## Observability
+
+LLM traces are captured end-to-end via MLflow. LiteLLM exports OpenTelemetry traces over gRPC to an in-namespace OTEL Collector, which bridges them to MLflow's HTTP OTLP endpoint. Each trace includes token usage, cost, latency, and the full request/response content.
+
+```
+LiteLLM (gRPC :8080) ──► OTEL Collector ──► MLflow /v1/traces (HTTP :5000)
+                                                    │
+                                              MLflow UI (Route)
+```
+
+The OTEL Collector listens on port 8080 instead of the standard 4317 because the AdminNetworkPolicy blocks non-allowed ports from `app=openclaw` pods. Port 8080 is permitted under the TrustyAI guardrails rule.
+
+See [Observability](observability.md) for full deployment details, configuration, and troubleshooting.
+
 ## References
 
 - [NeMo Guardrails Documentation](https://docs.nvidia.com/nemo/guardrails/latest/index.html)

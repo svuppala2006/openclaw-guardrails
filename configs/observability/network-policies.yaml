@@ -1,0 +1,46 @@
+---
+# Allow ingress to MLflow from the OpenShift router (UI access)
+# and from any pod in the namespace (OTEL collector)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-mlflow-from-router
+  namespace: <YOUR_NAMESPACE>
+spec:
+  podSelector:
+    matchLabels:
+      app: mlflow
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              network.openshift.io/policy-group: ingress
+        - podSelector: {}
+      ports:
+        - port: 5000
+          protocol: TCP
+---
+# Allow ingress to the OTEL Collector from openclaw (LiteLLM)
+# and the guardrails orchestrator
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-collector-from-guardrails
+  namespace: <YOUR_NAMESPACE>
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: otel-collector
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: openclaw-guardrails
+        - podSelector:
+            matchLabels:
+              app: openclaw
+      ports:
+        - port: 8080
+          protocol: TCP
+        - port: 4318
+          protocol: TCP

@@ -47,6 +47,7 @@ Security stack for OpenClaw on OpenShift, implementing defense in depth across i
 | Ingress isolation | [NetworkPolicies](docs/network-policies.md) | Default-deny ingress, pod-level traffic segmentation | Deployed |
 | Egress control | [AdminNetworkPolicy](docs/admin-network-policy.md) | Pod-level egress restrictions (DNS, K8s API, HTTPS only) | Deployed |
 | Domain filtering | [EgressFirewall](docs/egress-firewall.md) | DNS-based allowlist for external destinations | Deployed |
+| Observability | [MLflow + OTEL](docs/observability.md) | LLM trace capture with token usage, cost, latency | Deployed |
 | Secrets management | [HashiCorp Vault](docs/future-work.md#hashicorp-vault) | Encrypted, audited, auto-rotating credentials | Planned |
 | Agent sandboxing | [NVIDIA OpenShell](docs/future-work.md#nvidia-openshell) | Kernel-level isolation for agent code execution | Planned |
 | Tool governance | [MCP Gateway](docs/future-work.md#mcp-gateway) | Identity-based tool filtering for MCP servers | Planned |
@@ -61,6 +62,7 @@ Security stack for OpenClaw on OpenShift, implementing defense in depth across i
 - [Network Policies](docs/network-policies.md) -- Kubernetes ingress isolation
 - [Admin Network Policy](docs/admin-network-policy.md) -- cluster-level egress control
 - [Egress Firewall](docs/egress-firewall.md) -- DNS-based domain filtering
+- [Observability](docs/observability.md) -- MLflow trace capture via OTEL Collector
 - [Future Work](docs/future-work.md) -- Vault, OpenShell, MCP Gateway plans
 
 ## Repository Structure
@@ -81,7 +83,8 @@ openclaw-guardrails/
 │   ├── nemo-guardrails/             # NeMo Guardrails + LiteLLM + proxy configs
 │   ├── trustyai/                    # GuardrailsOrchestrator CR + config
 │   ├── network-policies/            # Ingress NetworkPolicy templates
-│   └── egress/                      # AdminNetworkPolicy + EgressFirewall templates
+│   ├── egress/                      # AdminNetworkPolicy + EgressFirewall templates
+│   └── observability/               # MLflow, OTEL Collector, NetworkPolicy templates
 └── proxy/
     └── proxy.py                     # OpenAI-compatible NeMo Guardrails proxy
 ```

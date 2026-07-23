@@ -215,6 +215,20 @@ The guardrails response is a short, fixed message. Claude's built-in refusals ar
 
 **Solution:** This is expected behavior. Subsequent requests are fast (1-2s for blocked, 8-10s for safe). In production, you could add a startup probe or readiness check that warms up the pipeline.
 
+### 6. HuggingFace Download Blocked by EgressFirewall
+
+**Problem:** NeMo Guardrails uses `fastembed` for embedding-based flow matching, which downloads the `qdrant/all-MiniLM-L6-v2-onnx` model from HuggingFace on startup. The HuggingFace cache is an `emptyDir` volume, so the model is lost on every pod restart. The OVN EgressFirewall blocks HuggingFace (`huggingface.co`, `cdn-lfs.huggingface.co`) — it's not in the domain allowlist (see [Egress Firewall](egress-firewall.md)). This causes the NeMo container to hang indefinitely at startup, waiting for a download that will never complete.
+
+**Solution:** Added `core.embedding_search_provider.name: simple` to the NeMo Guardrails config. This switches from embedding-based flow matching to keyword-based matching, eliminating the HuggingFace dependency entirely. This works because the config only uses `self check input` and `self check output` flows, which are pure LLM-based checks — they don't need vector similarity to match flows.
+
+```yaml
+core:
+  embedding_search_provider:
+    name: simple
+```
+
+This also eliminates the cold start latency from challenge #5, since the embedding model download was the primary source of that delay.
+
 ## File Structure
 
 ```
