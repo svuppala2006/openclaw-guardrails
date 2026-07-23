@@ -1,0 +1,52 @@
+# Claw CR patch for OpenShell integration
+#
+# Usage:
+#   oc patch claw <YOUR_CLAW_CR> -n <YOUR_NAMESPACE> --type merge -p "$(cat claw-cr-patch.yaml)"
+#
+# Replace all <PLACEHOLDER> values before applying.
+
+spec:
+  # Custom image with OpenShell CLI baked in
+  image: image-registry.openshift-image-registry.svc:5000/<YOUR_NAMESPACE>/openclaw-openshell:latest
+
+  # Install the OpenShell sandbox plugin via init container
+  plugins:
+    - "@openclaw/openshell-sandbox"
+
+  network:
+    # Allow direct in-cluster traffic (bypasses proxy-only egress)
+    inClusterBypass: true
+    # Egress rule to reach the OpenShell gateway
+    additionalEgress:
+      - to:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: openshell-<YOUR_USER>
+        ports:
+          - port: 8080
+            protocol: TCP
+
+  config:
+    raw:
+      agents:
+        defaults:
+          sandbox:
+            # "all" = sandbox every agent session; "non-main" = sandbox only non-main agents
+            mode: "all"
+            backend: "openshell"
+            # "session" = one sandbox per session; "agent" = one per agent; "shared" = shared across sessions
+            scope: "session"
+            workspaceAccess: "rw"
+      plugins:
+        entries:
+          openshell:
+            enabled: true
+            config:
+              command: "/opt/openshell/bin/openshell"
+              gateway: "openshell"
+              # Sandbox base image -- use a known-good OpenShift-compatible image
+              from: "<SANDBOX_BASE_IMAGE>"
+              # "mirror" = PVC canonical with bidirectional sync; "remote" = sandbox owns workspace
+              mode: "mirror"
+              gatewayEndpoint: "http://openshell-<YOUR_USER>.openshell-<YOUR_USER>.svc.cluster.local:8080"
+              timeoutSeconds: 180

@@ -59,59 +59,9 @@ The External Secrets Operator (ESO) is already installed cluster-wide on the NER
 
 This approach gives most of the benefits of Vault (encrypted storage, audit logging, rotation) without requiring any elevated cluster permissions. The external Vault instance can be managed independently.
 
-## 2. NVIDIA OpenShell -- Sandboxed Agent Runtime (Medium Priority)
+## 2. ~~NVIDIA OpenShell -- Sandboxed Agent Runtime~~ (Deployed)
 
-### Problem
-
-When AI agents execute code (tool calls, generated scripts, skill invocations), that code runs with the same permissions as the agent process itself. A compromised or manipulated agent could read files, make network calls, or spawn processes that it should not have access to.
-
-### What OpenShell Provides
-
-NVIDIA OpenShell is a kernel-level sandboxing runtime designed for AI agent workloads. It enforces:
-
-- **Deny-all-default filesystem policies:** Agent code can only access explicitly allowed paths.
-- **Deny-all-default network policies:** Agent code cannot make network calls unless specifically permitted.
-- **Process isolation:** Agent-spawned processes are sandboxed from the host and from each other.
-- **Inference routing controls:** Agent code cannot directly call LLM endpoints; all inference requests are mediated through the runtime.
-
-The core principle is treating all agent-generated code as untrusted, regardless of its source.
-
-### Intended Architecture: Per-Session Sandboxing
-
-Running all of OpenClaw inside a single OpenShell sandbox (the "NemoClaw" approach) provides less isolation than running each agent session in its own sandbox. If one session is compromised, it has access to the gateway, other sessions, and credentials within that shared sandbox.
-
-The intended design is per-session isolation:
-
-```
-OpenClaw Gateway (VM or rootless container)
-  └── Agent session 1 → OpenShell sandbox 1
-  └── Agent session 2 → OpenShell sandbox 2
-  └── Agent session N → OpenShell sandbox N
-```
-
-The gateway runs in a VM or rootless container as its own user. Each agent or agent session spawns into a separate OpenShell sandbox with its own filesystem and network policies. A compromised agent can only damage its own sandbox.
-
-This is implemented via the **OpenClaw OpenShell-sandbox plugin**, not by wrapping the entire OpenClaw deployment in a single sandbox.
-
-### OpenShift Integration Path
-
-Pavel Anni's OpenShell plugin on OpenShift tutorial provides a working setup for deploying OpenShell sandboxes on OpenShift. This setup is automated in both the `claw-operator` and `claw-installer`. The operator path is the preferred integration for OpenShift — it handles sandbox lifecycle management and avoids manual setup.
-
-OpenShell requires the **privileged SCC** to install its kernel-level hooks. This is the most permissive SCC in OpenShift and is unlikely to be granted on a shared cluster like NERC without strong justification.
-
-### Current State
-
-The OpenShell community image of OpenClaw is from March 2025 and is not actively maintained. MacOS/podman compatibility is unconfirmed — testing so far has only been on RHEL.
-
-### When This Matters Most
-
-OpenShell is most important when OpenClaw:
-
-- Runs third-party skills or plugins from untrusted sources.
-- Executes LLM-generated code (e.g., code interpreter tools).
-- Operates in multi-tenant scenarios where one agent's actions must not affect another's resources.
-
-If OpenClaw only runs first-party, vetted skills with no code generation, the risk is lower and other controls (network policies, RBAC) provide adequate isolation.
+OpenShell agent sandboxing has been deployed on the AWS OpenShift cluster. See [openshell.md](openshell.md) for full documentation including setup steps, security isolation test results, and troubleshooting notes.
 
 ## 3. MCP Gateway -- Tool Governance (Medium Priority)
 

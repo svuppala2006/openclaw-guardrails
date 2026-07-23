@@ -21,7 +21,7 @@ This repo documents the security stack for OpenClaw (AI agent gateway) on OpenSh
 | EgressFirewall | Deployed | DNS allowlist, wildcard fix merged (PR #963) |
 | OTEL Tracing (MLflow) | Deployed | LiteLLM → OTEL Collector (gRPC :8080) → MLflow; traces visible in UI |
 | Secrets management (ESO/Vault) | Planned | Next priority |
-| OpenShell agent sandboxing | Planned | Per-session sandbox model, needs privileged SCC |
+| OpenShell agent sandboxing | Deployed | Per-session sandboxing on AWS cluster, privileged SCC granted in openshell namespace |
 | MCP Gateway | Planned | Awaiting GA release |
 
 ## Repo structure

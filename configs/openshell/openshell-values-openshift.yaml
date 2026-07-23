@@ -1,0 +1,28 @@
+# Helm values for OpenShell on OpenShift
+#
+# Usage:
+#   helm install openshell-<YOUR_USER> \
+#     oci://ghcr.io/nvidia/openshell/helm-chart \
+#     --version <CHART_VERSION> \
+#     -n openshell-<YOUR_USER> \
+#     -f openshell-values-openshift.yaml
+
+server:
+  # OpenShift terminates TLS at the router; disable TLS inside the cluster
+  disableTls: true
+  sandboxImagePullPolicy: IfNotPresent
+
+pkiInitJob:
+  # Disable the PKI init job -- OpenShift restricts Job permissions.
+  # Generate Ed25519 JWT keys manually instead (see docs/openshell.md).
+  enabled: false
+
+service:
+  type: ClusterIP
+
+podSecurityContext:
+  # Let OpenShift assign UIDs from the namespace range
+  fsGroup: null
+
+securityContext:
+  runAsUser: null
