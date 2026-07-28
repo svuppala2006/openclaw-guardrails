@@ -94,7 +94,17 @@ The intended architecture is per-session isolation: the OpenClaw gateway runs in
 
 On OpenShift, this is deployed via the claw-operator, which handles sandbox lifecycle management. The main constraint is that OpenShell requires the privileged SCC to install its kernel-level hooks, which needs cluster administrator approval.
 
-**Technical details:** [Future Work — NVIDIA OpenShell](future-work.md#2-nvidia-openshell----sandboxed-agent-runtime-medium-priority)
+**Technical details:** [NVIDIA OpenShell](openshell.md)
+
+## NemoClaw (Self-Sandboxed OpenClaw) — Deployed
+
+NemoClaw is an alternative to the full OpenShell architecture. Instead of delegating agent code to separate sandbox pods, the entire OpenClaw gateway runs inside a single restricted container. Agent-generated code executes directly in the same pod — the container itself is the isolation boundary.
+
+The pod runs under OpenShift's `restricted-v2` SCC: all Linux capabilities are dropped, the process runs as a non-root user, seccomp filters are active, and SELinux MCS labels prevent cross-namespace access. Resource limits (CPU and memory) are applied via the Claw CR to prevent runaway agent code from consuming cluster resources. Network egress is restricted by operator-managed NetworkPolicies to only the proxy pod and DNS — agent code cannot reach the internet directly.
+
+The tradeoff is that all agent sessions share the same process. A compromised session can access the gateway's credentials and affect other sessions running in the same pod. For single-user experimentation or workloads where deploying the full OpenShell stack is impractical, this is an acceptable tradeoff. For multi-user or high-security workloads, use the per-session OpenShell architecture instead.
+
+**Technical details:** [NemoClaw](nemoclaw.md)
 
 ## MCP Gateway (Tool Governance) — Planned
 

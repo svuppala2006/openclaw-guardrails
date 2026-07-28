@@ -50,6 +50,7 @@ Security stack for OpenClaw on OpenShift, implementing defense in depth across i
 | Observability | [MLflow + OTEL](docs/observability.md) | LLM trace capture with token usage, cost, latency | Deployed |
 | Secrets management | [HashiCorp Vault](docs/future-work.md#hashicorp-vault) | Encrypted, audited, auto-rotating credentials | Planned |
 | Agent sandboxing | [NVIDIA OpenShell](docs/openshell.md) | Per-session sandbox isolation for agent code execution | Deployed |
+| Self-sandboxed agent | [NemoClaw](docs/nemoclaw.md) | Whole-pod sandboxing without external OpenShell infrastructure | Deployed |
 | Tool governance | [MCP Gateway](docs/future-work.md#mcp-gateway) | Identity-based tool filtering for MCP servers | Planned |
 
 ## Documentation
@@ -64,6 +65,7 @@ Security stack for OpenClaw on OpenShift, implementing defense in depth across i
 - [Egress Firewall](docs/egress-firewall.md) -- DNS-based domain filtering
 - [Observability](docs/observability.md) -- MLflow trace capture via OTEL Collector
 - [NVIDIA OpenShell](docs/openshell.md) -- per-session agent sandboxing via disposable pods
+- [NemoClaw](docs/nemoclaw.md) -- self-sandboxed OpenClaw without external sandbox infrastructure
 - [Future Work](docs/future-work.md) -- Vault, MCP Gateway plans
 
 ## Repository Structure
@@ -80,6 +82,7 @@ openclaw-guardrails/
 │   ├── admin-network-policy.md
 │   ├── egress-firewall.md
 │   ├── openshell.md
+│   ├── nemoclaw.md
 │   └── future-work.md
 ├── configs/                         # Template configs (use placeholders, not live values)
 │   ├── nemo-guardrails/             # NeMo Guardrails + LiteLLM + proxy configs
