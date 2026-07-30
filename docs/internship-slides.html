@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Securing OpenClaw on the MOC</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/white.css">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+  :root {
+    --r-heading-font: 'Inter', sans-serif;
+    --r-main-font: 'Inter', sans-serif;
+    --r-heading-color: #1a1a2e;
+    --r-main-color: #2d2d3d;
+    --r-link-color: #4361ee;
+    --accent: #4361ee;
+    --accent-light: #e8ecff;
+    --success: #2d936c;
+    --warning: #e07a3a;
+    --danger: #d64045;
+    --surface: #f8f9fc;
+  }
+
+  .reveal { font-size: 28px; }
+  .reveal h1 { font-size: 2.2em; font-weight: 700; letter-spacing: -0.02em; }
+  .reveal h2 { font-size: 1.6em; font-weight: 600; letter-spacing: -0.01em; color: var(--accent); }
+  .reveal h3 { font-size: 1.1em; font-weight: 600; }
+  .reveal p, .reveal li { line-height: 1.6; }
+  .reveal ul { list-style: none; padding-left: 0; }
+  .reveal ul li { padding: 0.25em 0; padding-left: 1.4em; position: relative; }
+  .reveal ul li::before { content: ''; position: absolute; left: 0; top: 0.65em; width: 8px; height: 8px; background: var(--accent); border-radius: 50%; }
+  .reveal .slide-number { font-family: 'Inter', sans-serif; font-size: 14px; color: #888; }
+
+  .title-slide h1 { margin-bottom: 0.15em; }
+  .title-slide .subtitle { font-size: 1.1em; color: #666; font-weight: 400; margin-bottom: 1.5em; }
+  .title-slide .author { font-size: 0.85em; color: #888; }
+  .title-slide .org { font-size: 0.75em; color: #aaa; margin-top: 0.3em; }
+
+  .card-grid { display: grid; gap: 1em; margin-top: 0.8em; }
+  .card-grid-2 { grid-template-columns: 1fr 1fr; }
+  .card-grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .card {
+    background: var(--surface);
+    border-radius: 12px;
+    padding: 1em 1.2em;
+    text-align: left;
+    border: 1px solid #e8e8f0;
+  }
+  .card h3 { margin: 0 0 0.4em 0; font-size: 0.9em; color: var(--accent); }
+  .card p { margin: 0; font-size: 0.75em; color: #555; line-height: 1.5; }
+  .card.accent { border-left: 4px solid var(--accent); }
+  .card.success { border-left: 4px solid var(--success); }
+  .card.warning { border-left: 4px solid var(--warning); }
+  .card.danger { border-left: 4px solid var(--danger); }
+
+  .status-table { width: 100%; border-collapse: collapse; font-size: 0.7em; margin-top: 0.6em; }
+  .status-table th { background: var(--accent); color: #fff; padding: 0.5em 0.8em; text-align: left; font-weight: 500; }
+  .status-table td { padding: 0.5em 0.8em; border-bottom: 1px solid #eee; }
+  .status-table tr:nth-child(even) { background: #fafafe; }
+  .badge { display: inline-block; padding: 0.15em 0.6em; border-radius: 20px; font-size: 0.85em; font-weight: 500; }
+  .badge-green { background: #e6f4ed; color: #1a7f4b; }
+  .badge-yellow { background: #fff3e0; color: #b86e00; }
+  .badge-blue { background: var(--accent-light); color: var(--accent); }
+
+  .arch-diagram {
+    background: var(--surface);
+    border-radius: 12px;
+    padding: 1.2em;
+    font-family: 'Courier New', monospace;
+    font-size: 0.55em;
+    line-height: 1.4;
+    text-align: left;
+    white-space: pre;
+    border: 1px solid #e8e8f0;
+    margin-top: 0.6em;
+  }
+
+  .highlight { color: var(--accent); font-weight: 600; }
+  .big-number { font-size: 2.5em; font-weight: 700; color: var(--accent); line-height: 1; }
+  .big-label { font-size: 0.7em; color: #888; margin-top: 0.3em; }
+
+  .stats-row { display: flex; justify-content: center; gap: 2em; margin-top: 1em; }
+  .stat-item { text-align: center; }
+
+  .problem-list li::before { background: var(--danger) !important; }
+
+  .flow-row { display: flex; align-items: center; justify-content: center; gap: 0.5em; margin-top: 1em; flex-wrap: wrap; }
+  .flow-box {
+    background: var(--surface);
+    border: 2px solid var(--accent);
+    border-radius: 10px;
+    padding: 0.6em 1em;
+    font-size: 0.7em;
+    font-weight: 500;
+  }
+  .flow-arrow { font-size: 1.2em; color: var(--accent); }
+  .flow-box.guarded { border-color: var(--success); background: #e6f4ed; }
+  .flow-box.blocked { border-color: var(--danger); background: #fce8e8; }
+
+  .timeline { position: relative; margin-top: 0.8em; padding-left: 2em; }
+  .timeline::before { content: ''; position: absolute; left: 0.5em; top: 0; bottom: 0; width: 3px; background: var(--accent-light); border-radius: 2px; }
+  .timeline-item { position: relative; margin-bottom: 0.8em; text-align: left; }
+  .timeline-item::before {
+    content: '';
+    position: absolute;
+    left: -1.75em;
+    top: 0.35em;
+    width: 14px;
+    height: 14px;
+    background: var(--accent);
+    border-radius: 50%;
+    border: 3px solid #fff;
+    box-shadow: 0 0 0 2px var(--accent);
+  }
+  .timeline-item.done::before { background: var(--success); box-shadow: 0 0 0 2px var(--success); }
+  .timeline-item.next::before { background: var(--warning); box-shadow: 0 0 0 2px var(--warning); }
+  .timeline-item h3 { margin: 0; font-size: 0.85em; }
+  .timeline-item p { margin: 0.1em 0 0 0; font-size: 0.65em; color: #666; }
+
+  .fragment.fade-up { transform: translateY(20px); }
+
+  .thank-you h1 { font-size: 2.8em; color: var(--accent); }
+  .thank-you p { color: #888; }
+</style>
+</head>
+<body>
+<div class="reveal">
+<div class="slides">
+
+<!-- SLIDE 1: Title -->
+<section class="title-slide">
+  <h1>Securing OpenClaw<br>on the MOC</h1>
+  <p class="subtitle">Building a defense-in-depth security stack for<br>LLM-driven agents on shared cloud infrastructure</p>
+  <p class="author">Suhruth Vuppala</p>
+  <p class="org">Mass Open Cloud Alliance &middot; NERC MGHPCC &middot; Summer 2026</p>
+</section>
+
+<!-- SLIDE 2: What is the MOC -->
+<section>
+  <h2>What is the MOC?</h2>
+  <p style="font-size:0.85em; color:#555; margin-bottom:0.8em;">The <strong>Mass Open Cloud (MOC) Alliance</strong> is a collaboration between universities, government, and industry to build and operate a production public cloud for research.</p>
+  <div class="card-grid card-grid-2">
+    <div class="card accent">
+      <h3>New England Research Cloud (NERC)</h3>
+      <p>The MOC's flagship platform &mdash; a shared OpenShift-based cloud hosted at the Massachusetts Green High Performance Computing Center (MGHPCC). It serves researchers across Boston University, Harvard, MIT, Northeastern, and UMass.</p>
+    </div>
+    <div class="card accent">
+      <h3>Open & Multi-Tenant</h3>
+      <p>Unlike private clouds, the NERC is a shared environment. Multiple research teams run workloads side by side, which makes security and isolation critical for any new deployment.</p>
+    </div>
+  </div>
+  <p class="fragment" style="font-size:0.8em; color:var(--accent); font-weight:500; margin-top:1em;">Deploying AI agents here means they must be secure enough to coexist with other researchers' workloads.</p>
+</section>
+
+<!-- SLIDE 3: The Problem -->
+<section>
+  <h2>The Problem</h2>
+  <p style="font-size:0.85em; color:#555; margin-bottom:0.6em;">OpenClaw is an AI agent gateway that gives LLMs the ability to execute code, call APIs, and interact with infrastructure. Deploying it on shared research clusters raises serious security questions.</p>
+  <div class="card-grid card-grid-3">
+    <div class="card danger">
+      <h3>Secret Leakage</h3>
+      <p>Snyk found 7% of OpenClaw skills have critical credential vulnerabilities. API keys sit in plain-text environment variables.</p>
+    </div>
+    <div class="card danger">
+      <h3>Prompt Injection</h3>
+      <p>A malicious prompt could instruct the agent to delete files, exfiltrate data, or execute arbitrary code on the cluster.</p>
+    </div>
+    <div class="card danger">
+      <h3>Unrestricted Access</h3>
+      <p>Without sandboxing, agent-generated code has full access to the gateway process, credentials, and the Kubernetes API.</p>
+    </div>
+  </div>
+  <p class="fragment" style="font-size:0.8em; margin-top:1em; color:var(--accent); font-weight:500;">Is it even worth deploying OpenClaw on the MOC?</p>
+</section>
+
+<!-- SLIDE 3: My Approach -->
+<section>
+  <h2>My Approach: Defense in Depth</h2>
+  <p style="font-size:0.8em; color:#555;">No single tool solves everything. I implemented multiple independent security layers &mdash; if one fails, the others still protect the system.</p>
+  <div class="flow-row" style="margin-top:1.5em;">
+    <div class="flow-box">User Input</div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-box guarded">Input Guardrails</div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-box guarded">Network Isolation</div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-box guarded">Agent Sandbox</div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-box">LLM</div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-box guarded">Output Guardrails</div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-box">User</div>
+  </div>
+  <div class="card-grid card-grid-2" style="margin-top:1.5em;">
+    <div class="card accent">
+      <h3>Plus: Observability</h3>
+      <p>End-to-end LLM trace capture with MLflow &mdash; every request logged with token usage, cost, and latency.</p>
+    </div>
+    <div class="card accent">
+      <h3>Plus: Egress Control</h3>
+      <p>DNS-based domain filtering and pod-level egress rules so agents can only reach approved external services.</p>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 4: Architecture -->
+<section>
+  <h2>Architecture Overview</h2>
+  <div class="arch-diagram">                      External Users
+                           |
+                      OpenShift Router
+                           |
+  +--------------------------------------------------------+
+  |  <span style="color:var(--accent);font-weight:bold;">OpenClaw Pod</span>                                         |
+  |  +------------+  +---------------+  +--------------+   |
+  |  | OAuth      |  | Gateway       |  | NeMo         |   |
+  |  | Proxy  ------&gt;| (port 18789)  |--&gt;| Guardrails   |   |
+  |  | (8443)     |  |               |  | (port 8000)  |   |
+  |  +------------+  +---------------+  +------+-------+   |
+  |                                            | if safe    |
+  |                                     +------v-------+   |
+  |                                     | LiteLLM      |------&gt; Claude (Vertex AI)
+  |                                     | (port 4000)  |   |
+  |                                     +---------+----+   |
+  +---------------------------------------+-------+--------+
+                                          |       |
+                       +------------------+       +-----------+
+                       v                                      v
+          +---------------------+              +------------------+
+          | TrustyAI Orchestr.  |              | OTEL Collector   |
+          | PII / Content Det.  |              |   --&gt; MLflow     |
+          +---------------------+              +------------------+</div>
+</section>
+
+<!-- SLIDE 5: Input/Output Guardrails -->
+<section>
+  <h2>Input/Output Guardrails</h2>
+  <div class="card-grid card-grid-2">
+    <div class="card success">
+      <h3>NeMo Guardrails (Sidecar)</h3>
+      <p>NVIDIA's guardrails engine runs as a sidecar proxy inside the OpenClaw pod. Screens every request and response using Colang rules.</p>
+      <p style="margin-top:0.5em;"><strong>Detects:</strong> Jailbreaks, prompt injection, abusive language, off-topic requests</p>
+    </div>
+    <div class="card success">
+      <h3>TrustyAI Orchestrator</h3>
+      <p>Red Hat's content safety platform with built-in detector models for PII and harmful content classification.</p>
+      <p style="margin-top:0.5em;"><strong>Detects:</strong> PII (emails, SSN, phone, credit cards), hate speech, toxic content</p>
+    </div>
+  </div>
+  <div class="card" style="margin-top:0.8em; text-align:center;">
+    <p style="margin:0; font-size:0.75em;">
+      <strong>Performance Impact:</strong> ~70&ndash;120ms added latency per request &middot; +100&ndash;250m CPU &middot; +256&ndash;512Mi memory
+    </p>
+  </div>
+</section>
+
+<!-- SLIDE 6: Network Isolation & Egress -->
+<section>
+  <h2>Network Isolation & Egress Control</h2>
+  <div class="card-grid card-grid-3">
+    <div class="card success">
+      <h3>Ingress Policies</h3>
+      <p>Default-deny ingress with 3 allow rules: only the OpenShift router, guardrails orchestrator, and NeMo can reach OpenClaw.</p>
+    </div>
+    <div class="card success">
+      <h3>AdminNetworkPolicy</h3>
+      <p>Pod-level egress restrictions. OpenClaw can only reach DNS (53), Kubernetes API (6443), and HTTPS (443). Everything else is blocked.</p>
+    </div>
+    <div class="card success">
+      <h3>EgressFirewall</h3>
+      <p>DNS-based allowlist for external destinations. Only approved domains (Vertex AI, container registries) are reachable.</p>
+    </div>
+  </div>
+  <p class="fragment" style="font-size:0.75em; color:#555; margin-top:0.8em;">
+    Contributed a <span class="highlight">wildcard DNS fix</span> to nerc-ocp-config (PR #963) to work around OVN-Kubernetes limitations.
+  </p>
+</section>
+
+<!-- SLIDE 7: Agent Sandboxing -->
+<section>
+  <h2>Agent Sandboxing</h2>
+  <div class="card-grid card-grid-2">
+    <div class="card success">
+      <h3>NVIDIA OpenShell</h3>
+      <p>Per-session sandboxing: each agent session gets its own disposable Kubernetes pod. Agent-generated code runs in complete isolation from the gateway.</p>
+      <p style="margin-top:0.4em; font-size:0.7em;"><em>Deployed on AWS cluster</em></p>
+    </div>
+    <div class="card success">
+      <h3>NemoClaw</h3>
+      <p>Self-sandboxed alternative: the entire OpenClaw process runs in a restricted pod with all capabilities dropped, non-root, seccomp, and SELinux isolation.</p>
+      <p style="margin-top:0.4em; font-size:0.7em;"><em>Simpler architecture, suitable for single-user</em></p>
+    </div>
+  </div>
+  <table class="status-table fragment" style="margin-top:0.8em; font-size:0.6em;">
+    <tr><th>Attack Vector</th><th>Without Sandboxing</th><th>With Sandboxing</th></tr>
+    <tr><td>Read gateway credentials</td><td style="color:var(--danger);">Agent can read env vars & secrets</td><td style="color:var(--success);">No access to gateway filesystem</td></tr>
+    <tr><td>Access Kubernetes API</td><td style="color:var(--danger);">Full service account access</td><td style="color:var(--success);">No RBAC beyond sandbox NS</td></tr>
+    <tr><td>Affect other sessions</td><td style="color:var(--danger);">Shared process, crash affects all</td><td style="color:var(--success);">Each session isolated in own pod</td></tr>
+  </table>
+</section>
+
+<!-- SLIDE 8: Observability -->
+<section>
+  <h2>Observability</h2>
+  <p style="font-size:0.8em; color:#555;">Every LLM interaction is traced end-to-end with MLflow via OpenTelemetry.</p>
+  <div class="flow-row" style="margin-top:1em;">
+    <div class="flow-box">LiteLLM</div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-box" style="border-color:var(--success);">OTEL Collector<br><span style="font-size:0.8em;color:#888;">gRPC :8080</span></div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-box" style="border-color:var(--success);">MLflow<br><span style="font-size:0.8em;color:#888;">HTTP :5000</span></div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-box">MLflow UI</div>
+  </div>
+  <div class="card-grid card-grid-3" style="margin-top:1.2em;">
+    <div class="stat-item">
+      <div class="big-number" style="font-size:1.8em;">Tokens</div>
+      <div class="big-label">Usage per request</div>
+    </div>
+    <div class="stat-item">
+      <div class="big-number" style="font-size:1.8em;">Cost</div>
+      <div class="big-label">Breakdown per call</div>
+    </div>
+    <div class="stat-item">
+      <div class="big-number" style="font-size:1.8em;">Latency</div>
+      <div class="big-label">End-to-end timing</div>
+    </div>
+  </div>
+  <p class="fragment" style="font-size:0.75em; color:#555; margin-top:0.8em;">TrustyAI Orchestrator traces also flow through the same collector &mdash; unified view of guardrail + inference performance.</p>
+</section>
+
+<!-- SLIDE 9: Deployment Status -->
+<section>
+  <h2>What's Deployed</h2>
+  <table class="status-table">
+    <tr><th>Security Layer</th><th>Component</th><th>Status</th></tr>
+    <tr><td>Inference Guardrails</td><td>NeMo Guardrails (sidecar)</td><td><span class="badge badge-green">Deployed</span></td></tr>
+    <tr><td>Content Safety</td><td>TrustyAI Orchestrator</td><td><span class="badge badge-green">Deployed</span></td></tr>
+    <tr><td>Ingress Isolation</td><td>NetworkPolicies (default-deny + allow)</td><td><span class="badge badge-green">Deployed</span></td></tr>
+    <tr><td>Egress Control</td><td>AdminNetworkPolicy + EgressFirewall</td><td><span class="badge badge-green">Deployed</span></td></tr>
+    <tr><td>Observability</td><td>MLflow + OTEL Collector</td><td><span class="badge badge-green">Deployed</span></td></tr>
+    <tr><td>Agent Sandboxing</td><td>OpenShell + NemoClaw</td><td><span class="badge badge-green">Deployed</span></td></tr>
+    <tr><td>Secrets Management</td><td>HashiCorp Vault (via ESO)</td><td><span class="badge badge-yellow">Planned</span></td></tr>
+    <tr><td>Tool Governance</td><td>MCP Gateway</td><td><span class="badge badge-yellow">Planned</span></td></tr>
+  </table>
+  <p style="font-size:0.7em; color:#888; margin-top:0.6em;">
+    Deployed across MOC MGHPCC OpenShift cluster and AWS OpenShift cluster
+  </p>
+</section>
+
+<!-- SLIDE 10: Challenges -->
+<section>
+  <h2>Challenges & Lessons Learned</h2>
+  <div class="card-grid card-grid-2">
+    <div class="card warning">
+      <h3>No Cluster-Admin Access</h3>
+      <p>Could not install operators, create ClusterRoleBindings, or grant SCCs. Had to find creative alternatives and work with cluster admins for every cluster-scoped change.</p>
+    </div>
+    <div class="card warning">
+      <h3>Network Policy Blockers</h3>
+      <p>AdminNetworkPolicy blocked pod-to-pod communication. Required iterating with cluster admins to open specific ports while maintaining security.</p>
+    </div>
+    <div class="card warning">
+      <h3>OVN-Kubernetes Limitations</h3>
+      <p>Wildcard DNS rules aren't supported in EgressFirewall. Contributed a fix upstream (nerc-ocp-config PR #963) to work around this.</p>
+    </div>
+    <div class="card accent">
+      <h3>First OpenClaw on MOC</h3>
+      <p>No prior deployments to reference. Built everything from scratch, documented all experiments (including failures) in the openclaw-guardrails repo.</p>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 11: What's Next -->
+<section>
+  <h2>What's Next</h2>
+  <div class="timeline">
+    <div class="timeline-item done">
+      <h3>Guardrails + Network Isolation + Sandboxing</h3>
+      <p>Core security stack deployed and validated</p>
+    </div>
+    <div class="timeline-item done">
+      <h3>Observability Pipeline</h3>
+      <p>End-to-end tracing live in MLflow</p>
+    </div>
+    <div class="timeline-item next">
+      <h3>Secrets Management (HashiCorp Vault)</h3>
+      <p>Integrate via External Secrets Operator for encrypted, audited, auto-rotating credentials</p>
+    </div>
+    <div class="timeline-item next">
+      <h3>MCP Gateway</h3>
+      <p>Identity-based tool filtering for agent tool calls (awaiting GA release)</p>
+    </div>
+    <div class="timeline-item">
+      <h3>Cost-Benefit Report</h3>
+      <p>Final recommendation on whether OpenClaw should be deployed on the MOC at scale</p>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 12: Thank You -->
+<section class="thank-you">
+  <h1>Thank You</h1>
+  <p style="font-size:1em; color:#555; margin-top:0.5em;">Questions?</p>
+  <div style="margin-top:2em; font-size:0.7em; color:#aaa;">
+    <p>Suhruth Vuppala</p>
+    <p>Mass Open Cloud Alliance &middot; MOC MGHPCC</p>
+    <p style="margin-top:0.8em;">
+      <a href="https://github.com/" style="color:var(--accent);">github.com</a> &middot;
+      openclaw-guardrails repo
+    </p>
+  </div>
+</section>
+
+</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+<script>
+Reveal.initialize({
+  hash: true,
+  slideNumber: 'c/t',
+  transition: 'slide',
+  transitionSpeed: 'default',
+  controls: true,
+  progress: true,
+  center: true,
+  width: 1280,
+  height: 720,
+});
+</script>
+</body>
+</html>
