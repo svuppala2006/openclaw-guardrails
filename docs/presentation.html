@@ -664,7 +664,7 @@
       </div>
     </div>
   </div>
-  <p class="small muted" style="margin-top: 0.7em; text-align: center;">7 out of 9 test prompts correctly blocked &mdash; 2 safe prompts correctly passed through.</p>
+  <p class="small muted" style="margin-top: 0.7em; text-align: center;">9 test prompts, 9 correct results &mdash; 7 malicious prompts blocked, 2 safe prompts allowed through.</p>
 </section>
 
 <!-- Network Isolation -->
@@ -850,7 +850,34 @@
   </div>
 </section>
 
-<!-- SLIDE 20: Key Takeaways -->
+<!-- SLIDE: Recommendation -->
+<section>
+  <h2>Recommendation for the MOC</h2>
+  <div class="card" style="border-left: 5px solid var(--rh-teal-50); max-width: 850px; margin: 0.8em auto 0; padding: 1.2em 1.4em;">
+    <h3 style="font-size: 1em; color: var(--rh-teal-60); margin-bottom: 0.4em;">Yes &mdash; deploy OpenClaw on the MOC, but only with guardrails in place.</h3>
+    <p style="font-size: 0.8em; color: var(--rh-gray-60);">The security risks of running an AI agent on a shared research cluster are real and well-documented. But with a defense-in-depth stack, they are manageable. The overhead is small relative to the protection it provides.</p>
+  </div>
+  <div class="card-grid card-grid-2" style="margin-top: 0.8em;">
+    <div class="card teal">
+      <h3>Deploy with</h3>
+      <p>Input/output guardrails (NeMo + TrustyAI), network isolation (ANP + EgressFirewall + NetworkPolicies), agent sandboxing (OpenShell or NemoClaw), and observability (OTEL + MLflow). All are deployed and validated.</p>
+    </div>
+    <div class="card orange">
+      <h3>Do not deploy without</h3>
+      <p>Secrets management is not yet in place. Plaintext credentials remain the largest open risk. Vault integration via ESO should be completed before any production-facing or multi-user deployment.</p>
+    </div>
+  </div>
+  <div class="card" style="margin-top: 0.8em; background: var(--rh-gray-10);">
+    <p style="margin: 0; font-size: 0.72em; text-align: center;">
+      <strong>Performance cost:</strong>
+      <span class="mono">~100ms</span> added latency &middot;
+      <span class="mono">~500Mi</span> additional memory &middot;
+      <span class="mono">~250m</span> additional CPU
+    </p>
+  </div>
+</section>
+
+<!-- Key Takeaways -->
 <section>
   <h2>Key Takeaways</h2>
   <div class="card-grid" style="grid-template-columns: 1fr; max-width: 800px; margin: 1em auto 0;">
