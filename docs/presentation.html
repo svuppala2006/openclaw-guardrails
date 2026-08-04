@@ -352,7 +352,7 @@
         <li>Implementation & architecture (Phase 3)</li>
         <li>Deployment status</li>
         <li>Challenges & lessons learned</li>
-        <li>Open source contributions</li>
+        <li>Upstream contributions</li>
         <li>Future work</li>
       </ul>
     </div>
@@ -360,7 +360,7 @@
 </section>
 
 <!-- SLIDE 3: Section - Background -->
-<section class="section-slide">
+<section class="section-slide" data-transition="none">
   <div class="red-bar"></div>
   <h2>Background</h2>
   <p>The Mass Open Cloud and the agent problem</p>
@@ -411,7 +411,7 @@
     </div>
     <div class="card orange">
       <h3>Sandboxing</h3>
-      <p>Per-session disposable pods (OpenShell) or restricted containers (NemoClaw). Agent code runs isolated from the gateway process.</p>
+      <p>Built-in optional sandboxing via Docker, Podman, or SSH. Tool execution runs in an isolated container, separated from the gateway process.</p>
     </div>
   </div>
 </section>
@@ -493,7 +493,7 @@
 </section>
 
 <!-- SLIDE 7: Section - Approach -->
-<section class="section-slide">
+<section class="section-slide" data-transition="none">
   <div class="red-bar"></div>
   <h2>Project Approach</h2>
   <p>Three phases: identify, design, implement</p>
@@ -579,7 +579,7 @@
 </section>
 
 <!-- SLIDE 10: Section - Implementation -->
-<section class="section-slide">
+<section class="section-slide" data-transition="none">
   <div class="red-bar"></div>
   <h2>Phase 3: Implementation</h2>
   <p>Architecture, components, and deployment</p>
@@ -588,30 +588,81 @@
 <!-- SLIDE 11: Architecture -->
 <section>
   <h2>Architecture Overview</h2>
-  <div class="arch-diagram">                        External Users
-                             |
-                        OpenShift Router
-                             |
-    +----------------------------------------------------------+
-    |  <span class="accent">OpenClaw Pod</span>                                           |
-    |  +------------+   +---------------+   +--------------+   |
-    |  | OAuth      |   |               |   | NeMo         |   |
-    |  | Proxy  -------&gt;| Gateway       |--&gt;| Guardrails   |   |
-    |  |            |   |               |   |              |   |
-    |  +------------+   +---------------+   +------+-------+   |
-    |                                              | <span class="teal">if safe</span>    |
-    |                                       +------v-------+   |
-    |                                       | LiteLLM      |------&gt; <span class="orange">Claude (Vertex AI)</span>
-    |                                       |              |   |
-    |                                       +---------+----+   |
-    +---------------------------------------+---------+--------+
-                                            |         |
-                         +------------------+         +-----------+
-                         v                                        v
-            +---------------------+                +------------------+
-            | <span class="teal">TrustyAI Orchestr.</span>  |                | <span class="teal">OTEL Collector</span>   |
-            | PII / Content Det.  |                |   --&gt; MLflow     |
-            +---------------------+                +------------------+</div>
+  <div style="display: flex; flex-direction: column; align-items: center; margin-top: 0.3em; gap: 0;">
+    <!-- External Users -->
+    <div style="font-size: 0.7em; font-weight: 600; color: var(--rh-gray-60);">External Users</div>
+    <div style="width: 2px; height: 16px; background: var(--rh-gray-30);"></div>
+    <div style="font-size: 0.62em; color: var(--rh-gray-50); background: var(--rh-gray-10); border: 1px solid var(--rh-gray-20); border-radius: 6px; padding: 0.3em 1em;">OpenShift Router</div>
+    <div style="width: 2px; height: 16px; background: var(--rh-gray-30);"></div>
+
+    <!-- OpenClaw Pod -->
+    <div style="border: 2px solid var(--rh-red); border-radius: 10px; padding: 0.7em 1em 0.6em; width: 90%; max-width: 1050px; position: relative;">
+      <div style="position: absolute; top: -0.65em; left: 1.2em; background: var(--rh-white); padding: 0 0.5em; font-size: 0.65em; font-weight: 700; color: var(--rh-red); letter-spacing: 0.02em;">OpenClaw Pod</div>
+
+      <!-- Top row: OAuth → Gateway → NeMo -->
+      <div style="display: flex; align-items: center; justify-content: center; gap: 0.4em; margin-top: 0.3em;">
+        <div style="background: var(--rh-gray-10); border: 1px solid var(--rh-gray-20); border-radius: 6px; padding: 0.4em 0.8em; text-align: center; min-width: 100px;">
+          <div style="font-size: 0.68em; font-weight: 600; color: var(--rh-gray-80);">OAuth Proxy</div>
+        </div>
+        <div style="color: var(--rh-gray-40); font-size: 1em;">&rarr;</div>
+        <div style="background: var(--rh-red-lightest); border: 1px solid var(--rh-red-light); border-radius: 6px; padding: 0.4em 0.8em; text-align: center; min-width: 100px;">
+          <div style="font-size: 0.68em; font-weight: 600; color: var(--rh-red-dark);">Gateway</div>
+        </div>
+        <div style="color: var(--rh-gray-40); font-size: 1em;">&rarr;</div>
+        <div style="background: var(--rh-teal-10); border: 1px solid var(--rh-teal-50); border-radius: 6px; padding: 0.4em 0.8em; text-align: center; min-width: 130px;">
+          <div style="font-size: 0.68em; font-weight: 600; color: var(--rh-teal-60);">NeMo Guardrails</div>
+          <div style="font-size: 0.55em; color: var(--rh-gray-50);">input &amp; output screening</div>
+        </div>
+      </div>
+
+      <!-- Arrow down: "if safe" -->
+      <div style="display: flex; justify-content: center; margin: 0.15em 0;">
+        <div style="display: flex; flex-direction: column; align-items: center;">
+          <div style="width: 2px; height: 10px; background: var(--rh-teal-50);"></div>
+          <div style="font-size: 0.55em; color: var(--rh-teal-60); font-weight: 500; font-style: italic;">if safe</div>
+          <div style="width: 2px; height: 10px; background: var(--rh-teal-50);"></div>
+          <div style="width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid var(--rh-teal-50);"></div>
+        </div>
+      </div>
+
+      <!-- LiteLLM row -->
+      <div style="display: flex; align-items: center; justify-content: center; gap: 0.5em;">
+        <div style="background: var(--rh-orange-10); border: 1px solid var(--rh-orange-40); border-radius: 6px; padding: 0.4em 0.8em; text-align: center; min-width: 100px;">
+          <div style="font-size: 0.68em; font-weight: 600; color: var(--rh-orange-50);">LiteLLM</div>
+          <div style="font-size: 0.55em; color: var(--rh-gray-50);">model proxy</div>
+        </div>
+        <div style="color: var(--rh-gray-40); font-size: 1em;">&rarr;</div>
+        <div style="background: var(--rh-orange-10); border: 1px solid var(--rh-orange-40); border-radius: 6px; padding: 0.4em 0.8em; text-align: center;">
+          <div style="font-size: 0.68em; font-weight: 600; color: var(--rh-orange-50);">Claude (Vertex AI)</div>
+          <div style="font-size: 0.55em; color: var(--rh-gray-50);">external model provider</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Arrows down to external services -->
+    <div style="display: flex; justify-content: center; gap: 12em; width: 90%; max-width: 1050px;">
+      <div style="display: flex; flex-direction: column; align-items: center;">
+        <div style="width: 2px; height: 20px; background: var(--rh-gray-30);"></div>
+        <div style="width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid var(--rh-gray-30);"></div>
+      </div>
+      <div style="display: flex; flex-direction: column; align-items: center;">
+        <div style="width: 2px; height: 20px; background: var(--rh-gray-30);"></div>
+        <div style="width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid var(--rh-gray-30);"></div>
+      </div>
+    </div>
+
+    <!-- External services row -->
+    <div style="display: flex; justify-content: center; gap: 3em; width: 90%; max-width: 1050px;">
+      <div style="background: var(--rh-teal-10); border: 1px solid var(--rh-teal-50); border-radius: 6px; padding: 0.5em 1em; text-align: center; min-width: 180px;">
+        <div style="font-size: 0.68em; font-weight: 600; color: var(--rh-teal-60);">TrustyAI Orchestrator</div>
+        <div style="font-size: 0.55em; color: var(--rh-gray-50);">PII &amp; content detection</div>
+      </div>
+      <div style="background: var(--rh-teal-10); border: 1px solid var(--rh-teal-50); border-radius: 6px; padding: 0.5em 1em; text-align: center; min-width: 180px;">
+        <div style="font-size: 0.68em; font-weight: 600; color: var(--rh-teal-60);">OTEL Collector &rarr; MLflow</div>
+        <div style="font-size: 0.55em; color: var(--rh-gray-50);">observability &amp; tracing</div>
+      </div>
+    </div>
+  </div>
 </section>
 
 <!-- SLIDE 12: Input/Output Guardrails -->
@@ -742,7 +793,7 @@
 </section>
 
 <!-- SLIDE 17: Section - Reflections -->
-<section class="section-slide">
+<section class="section-slide" data-transition="none">
   <div class="red-bar"></div>
   <h2>Reflections</h2>
   <p>Challenges, lessons, and what's next</p>
@@ -773,7 +824,7 @@
 
 <!-- SLIDE: Open Source Contributions -->
 <section>
-  <h2>Open Source Contributions</h2>
+  <h2>Upstream Contributions</h2>
   <p class="small muted" style="margin-bottom: 0.4em;">Building guardrails on a locked-down cluster surfaced real bugs upstream. These fixes went back into the projects they came from.</p>
   <table class="contrib-table">
     <tr><th>Repository</th><th>What it fixed</th></tr>
@@ -876,7 +927,7 @@
 </section>
 
 <!-- SLIDE 21: Thank You -->
-<section class="thank-you">
+<section class="thank-you" data-transition="none">
   <div class="red-bar"></div>
   <h1>Thank you.</h1>
   <p style="font-size: 1.1em; margin-top: 0.5em;">Questions?</p>
@@ -901,7 +952,8 @@
 Reveal.initialize({
   hash: true,
   slideNumber: 'c/t',
-  transition: 'slide',
+  transition: 'none',
+  backgroundTransition: 'none',
   transitionSpeed: 'default',
   controls: true,
   progress: true,
