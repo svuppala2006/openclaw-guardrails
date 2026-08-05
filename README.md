@@ -1,6 +1,6 @@
 # OpenClaw Guardrails
 
-Security stack for OpenClaw on OpenShift, implementing defense in depth across inference guardrails, PII detection, network isolation, and egress control.
+Defense-in-depth security stack for OpenClaw on OpenShift, covering inference guardrails, content safety, network isolation, egress control, observability, agent sandboxing, and credential isolation.
 
 ## Architecture
 
@@ -48,7 +48,8 @@ Security stack for OpenClaw on OpenShift, implementing defense in depth across i
 | Egress control | [AdminNetworkPolicy](docs/admin-network-policy.md) | Pod-level egress restrictions (DNS, K8s API, HTTPS only) | Deployed |
 | Domain filtering | [EgressFirewall](docs/egress-firewall.md) | DNS-based allowlist for external destinations | Deployed |
 | Observability | [MLflow + OTEL](docs/observability.md) | LLM trace capture with token usage, cost, latency | Deployed |
-| Secrets management | [HashiCorp Vault](docs/future-work.md#hashicorp-vault) | Encrypted, audited, auto-rotating credentials | Planned |
+| Secrets at rest | [ESO + Vault](docs/future-work.md#hashicorp-vault) | Encrypted, audited, auto-rotating credentials (MOC has in-cluster Vault) | Planned |
+| Credential isolation | [OpenShell / Kagenti](docs/recommendation.md#3-whats-not-yet-in-place) | Prevent agents from seeing raw secrets at runtime | Not yet explored |
 | Agent sandboxing | [NVIDIA OpenShell](docs/openshell.md) | Per-session sandbox isolation for agent code execution | Deployed |
 | Self-sandboxed agent | [NemoClaw](docs/nemoclaw.md) | Whole-pod sandboxing without external OpenShell infrastructure | Deployed |
 | Tool governance | [MCP Gateway](docs/future-work.md#mcp-gateway) | Identity-based tool filtering for MCP servers | Planned |
@@ -68,6 +69,9 @@ Security stack for OpenClaw on OpenShift, implementing defense in depth across i
 - [NVIDIA OpenShell](docs/openshell.md) -- per-session agent sandboxing via disposable pods
 - [NemoClaw](docs/nemoclaw.md) -- self-sandboxed OpenClaw without external sandbox infrastructure
 - [Future Work](docs/future-work.md) -- Vault, MCP Gateway plans
+- [Presentation](docs/presentation.html) -- project presentation (HTML slides)
+- [Presentation PDF](docs/presentation.pdf) -- project presentation (PDF export)
+- [Internship Slides](docs/internship-slides.html) -- internship presentation slides
 
 ## Repository Structure
 
@@ -77,15 +81,20 @@ openclaw-guardrails/
 ├── docs/                            # Documentation for each security layer
 │   ├── recommendation.md
 │   ├── architecture.md
+│   ├── how-it-works.md
 │   ├── nemo-guardrails.md
 │   ├── trustyai-orchestrator.md
 │   ├── presidio-pii-detection.md
 │   ├── network-policies.md
 │   ├── admin-network-policy.md
 │   ├── egress-firewall.md
+│   ├── observability.md
 │   ├── openshell.md
 │   ├── nemoclaw.md
-│   └── future-work.md
+│   ├── future-work.md
+│   ├── presentation.html
+│   ├── presentation.pdf
+│   └── internship-slides.html
 ├── configs/                         # Template configs (use placeholders, not live values)
 │   ├── nemo-guardrails/             # NeMo Guardrails + LiteLLM + proxy configs
 │   ├── trustyai/                    # GuardrailsOrchestrator CR + config
