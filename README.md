@@ -55,6 +55,7 @@ Security stack for OpenClaw on OpenShift, implementing defense in depth across i
 
 ## Documentation
 
+- [MOC Recommendation](docs/recommendation.md) -- POC findings and recommendation for deploying OpenClaw on the MOC
 - [How Each Layer Works](docs/how-it-works.md) -- plain-language explanation of every security layer
 - [Architecture Overview](docs/architecture.md) -- full security stack design and traffic flows
 - [NeMo Guardrails](docs/nemo-guardrails.md) -- LLM input/output guardrails via sidecar proxy
@@ -74,6 +75,7 @@ Security stack for OpenClaw on OpenShift, implementing defense in depth across i
 openclaw-guardrails/
 ├── README.md
 ├── docs/                            # Documentation for each security layer
+│   ├── recommendation.md
 │   ├── architecture.md
 │   ├── nemo-guardrails.md
 │   ├── trustyai-orchestrator.md

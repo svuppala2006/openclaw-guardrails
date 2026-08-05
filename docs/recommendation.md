@@ -1,4 +1,4 @@
-# Recommendation: Deploying OpenClaw on the MOC
+# Deploying OpenClaw on the MOC: POC Findings and Recommendation
 
 **Author:** Suhruth Vuppala
 **Date:** August 2026
@@ -66,7 +66,7 @@ A typical request flows through these layers in sequence:
 1. **Authentication:** OAuth proxy verifies the user's identity before the request reaches the gateway.
 2. **Input guardrails:** NeMo Guardrails evaluates the user's message against safety policies. Blocked messages are refused without ever reaching the LLM.
 3. **Content safety:** TrustyAI scans for PII and sensitive content using deterministic pattern matching, independent of LLM judgment.
-4. **LLM call:** If the message passes both checks, it is forwarded to Claude via LiteLLM.
+4. **LLM call:** If the message passes both checks, it is forwarded to the LLM provider via LiteLLM.
 5. **Output guardrails:** The LLM's response is evaluated by NeMo's output rails before being returned to the user.
 
 Independent of the request flow, three always-on protections operate continuously:
@@ -210,7 +210,71 @@ The guardrails add latency to each LLM request (see Section 4 for details). This
 
 ---
 
-## 7. Conclusion
+## 7. Cost-Benefit Analysis
+
+### What the Security Stack Costs
+
+| Cost Category | Details |
+|---------------|---------|
+| **Compute resources** | ~3 additional pods (TrustyAI, OTEL Collector, MLflow) plus 1 pod per active OpenShell session. NeMo Guardrails runs as a sidecar. See Section 4 for estimates. |
+| **Latency** | 50ms-1.5s per guardrail check depending on configuration. Two checks per request (input + output) with LLM-based self-check at the higher end. |
+| **LLM API costs** | Each guardrail check makes an additional LLM call (input check + output check). These are shorter classification calls, not full generations, so they add overhead but do not double the per-request cost. At scale, this is still a meaningful ongoing expense. |
+| **Maintenance** | Multiple components with independent update cycles, version compatibility requirements, and policy tuning. Not formally estimated, but non-trivial. |
+| **Cluster-admin dependency** | AdminNetworkPolicy, EgressFirewall, SCC grants, and ESO configuration require cluster-admin involvement for initial setup and ongoing changes. |
+| **Complexity** | Eight deployed security layers across multiple technologies (NeMo, TrustyAI, OVN, OTEL, MLflow, OpenShell). Debugging issues requires familiarity with all of them. |
+
+### What the Security Stack Provides
+
+| Benefit | Details |
+|---------|---------|
+| **Prompt injection defense** | Two independent layers (NeMo + TrustyAI) screening inputs and outputs, with observability to detect bypasses after the fact. |
+| **Data exfiltration prevention** | Three layers of network control (NetworkPolicies, AdminNetworkPolicy, EgressFirewall) ensure that even a compromised agent can only reach approved destinations on approved ports. |
+| **PII protection** | Deterministic pattern-based detection of email addresses, SSNs, credit cards, phone numbers, and other sensitive data before it reaches the LLM or is returned to the user. |
+| **Agent isolation** | Per-session sandboxing (OpenShell) prevents agent code from accessing other sessions, the gateway, or the host. |
+| **Forensic capability** | End-to-end tracing of every LLM interaction with full request/response content, token usage, cost, and latency. |
+| **Credential protection** | Claw-operator's credential proxy keeps LLM API keys away from the gateway process. OpenShell's inference routing proxy likely extends this to agent code (pending validation). |
+
+### What Happens Without It
+
+If the MOC does not adopt a security stack and users deploy OpenClaw on their own:
+
+- **No guardrails.** Users interact directly with LLMs with no input/output screening. Prompt injection, PII leakage, and abusive content are unmitigated.
+- **No network isolation.** Agent pods can reach any destination on any port. A compromised agent can exfiltrate data to arbitrary external hosts or move laterally within the cluster.
+- **No observability.** There is no record of what agents do, what they send to LLMs, or what they receive back. Incidents cannot be investigated after the fact.
+- **No sandboxing.** Agent code executes inside the gateway pod with access to all gateway credentials, environment variables, and the shared filesystem.
+- **Fragmented security.** Each user group would need to implement their own security measures, leading to inconsistent protection levels, duplicated effort, and gaps where no one takes responsibility.
+
+### Why the MOC Should Support OpenClaw
+
+The MOC's core mission is enabling research. AI agents are increasingly central to how researchers work — from data analysis and code generation to literature review and experiment automation. Supporting OpenClaw on the MOC means researchers, professors, and startups can access AI agent capabilities through the infrastructure they already use, without each group needing to build, secure, and maintain their own AI stack. A centralized, secured deployment lowers the barrier to entry and ensures consistent protections across all users.
+
+### Open-Weight Models and GPU Costs
+
+The current POC uses Claude on Vertex AI, which incurs per-request API costs. An alternative is running open-weight models (e.g., Nemotron, Llama, Qwen) locally on the MOC's existing GPU nodes, eliminating API costs entirely and keeping all data on-cluster — which addresses the data handling concerns raised in Section 5.
+
+The tradeoff is GPU compute cost. Running inference locally requires dedicated GPU allocation per model:
+
+| Model Size | Typical GPU Requirement | Notes |
+|-----------|------------------------|-------|
+| 7-8B parameters | 1x GPU (16-24GB VRAM) | Suitable for lightweight agent tasks |
+| 13-14B parameters | 1x GPU (24-48GB VRAM) | Better reasoning, still single-GPU |
+| 70B+ parameters | 2-4x GPUs | Near-frontier quality, significant resource commitment |
+
+These are general estimates, not benchmarked or validated — actual requirements depend on quantization, batch size, serving framework (vLLM, Ollama, etc.), and the specific GPU hardware available on the MOC. OpenClaw is model-agnostic, so a deployment could use local models for routine tasks and fall back to a cloud provider for more demanding workloads.
+
+### If the MOC Decides Not to Proceed
+
+If the MOC does not support OpenClaw, users who want AI agent capabilities will likely pursue one of these alternatives:
+
+- **Deploy on their own cloud accounts.** Users run OpenClaw on AWS, GCP, or other providers outside the MOC. This works but means no centralized security controls, no MOC oversight, and each user bears the full cost and responsibility of securing their deployment.
+- **Use commercial AI platforms directly.** Users go to ChatGPT, Claude, or other hosted services. This avoids infrastructure complexity but offers no agent autonomy, no tool integration, no self-hosted data control, and no customization.
+- **Deploy unsecured on the MOC.** Some users may deploy OpenClaw on the MOC without the security stack, resulting in the risks described in "What Happens Without It" above.
+
+None of these alternatives provide the combination of AI agent capabilities, centralized security, and institutional oversight that a supported MOC deployment would offer.
+
+---
+
+## 8. Conclusion
 
 This POC demonstrates that securely running OpenClaw on the MOC is feasible. The defense-in-depth security stack addresses the three core risks identified at the project's outset:
 
