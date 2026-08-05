@@ -1,23 +1,21 @@
-# Recommendation: Deploying OpenClaw on NERC
+# Recommendation: Deploying OpenClaw on the MOC
 
 **Author:** Suhruth Vuppala
 **Date:** August 2026
-**Audience:** Mass Open Cloud (MOC) / NERC Team
-**Status:** Final Recommendation
+**Audience:** MOC Team
+**Status:** Final POC Report
 
 ---
 
 ## Executive Summary
 
-This document recommends that the MOC adopt OpenClaw as a supported AI agent gateway on the NERC MGHPCC OpenShift cluster, subject to three conditions outlined below.
+Several groups on the MOC want to deploy OpenClaw, an open-source AI agent runtime, on the shared OpenShift cluster. However, the security implications of running autonomous AI agents on shared infrastructure have not yet been fully evaluated — agents that can execute code, access tools, and make network calls present risks that standard workloads do not. This project set out to answer a central question: **is it feasible to securely run LLM-driven AI agents on the MOC?**
 
-Over the course of this project, a defense-in-depth security stack was designed, implemented, and tested to answer a central question: **is it feasible to securely run LLM-driven AI agents on the NERC?** The answer is a conditional yes. Eight security layers are deployed and operational today, covering inference guardrails, content safety, network isolation, egress control, observability, and agent sandboxing. Two additional layers (secrets management and tool governance) are planned and have clear implementation paths.
+This document presents the results of that investigation. A proof-of-concept defense-in-depth security stack was designed, implemented, and tested across eight layers — covering inference guardrails, content safety, network isolation, egress control, observability, and agent sandboxing. Two additional layers (secrets management and tool governance) have been scoped with clear implementation paths. The POC demonstrates that securing OpenClaw on the MOC is feasible, but reaching production readiness requires further work and MOC involvement.
 
-OpenClaw on NERC would serve three user groups: **researchers** leveraging AI agents for data analysis and experimentation, **professors** incorporating AI agents into coursework, and **AI startups** using NERC compute for agent-driven workflows.
+### What's Needed to Move Forward
 
-### Conditions for Adoption
-
-1. **Policy approval** for running AI agent workloads on NERC, including acceptance of the security posture documented here.
+1. **Policy approval** for running AI agent workloads on the cluster, including acceptance of the security posture documented here.
 2. **Cluster-admin collaboration** on a small set of cluster-scoped resources that namespace users cannot self-manage (detailed in Section 5).
 3. **Commitment to ongoing maintenance** of the security stack as OpenClaw and its dependencies evolve.
 
@@ -25,19 +23,28 @@ OpenClaw on NERC would serve three user groups: **researchers** leveraging AI ag
 
 ## 1. What is OpenClaw?
 
-OpenClaw is an open-source AI agent gateway that allows users to interact with LLM-powered agents through a web interface. Agents can execute code, use tools via the Model Context Protocol (MCP), and perform multi-step reasoning. The gateway manages sessions, authentication, and tool routing.
+OpenClaw is a free and open-source personal AI agent that can execute tasks via large language models, using messaging platforms as its main user interface. It runs on users' own devices and meets them on the channels they already use — WhatsApp, Telegram, Slack, Discord, Signal, iMessage, and 20+ others — with built-in voice support, a visual Canvas workspace, and an extensible skills ecosystem backed by ClawHub, a public registry with over 13,000 community skills. OpenClaw is model-agnostic, supporting Claude, GPT-4o, Gemini, Nemotron, and locally-hosted models interchangeably. It is developed by the OpenClaw Foundation, a 501(c)(3) non-profit, and has grown to become one of the most-starred open-source projects on GitHub with 380,000+ stars. For Kubernetes environments, dedicated operators (including the claw-operator used in this project) manage OpenClaw instances declaratively through custom resources, handling credential proxying, network isolation, and multi-instance lifecycle.
 
-On NERC, OpenClaw runs on OpenShift and connects to Claude on Vertex AI (us-east5 region) through a LiteLLM proxy. User authentication is handled by an OAuth proxy integrated with OpenShift's identity provider.
+### The Problem
 
-### Why NERC?
+The MOC serves a diverse community — researchers, professors running university courses, AI startups, and Red Hat engineers — all sharing the same OpenShift infrastructure. Several of these groups want to deploy OpenClaw on the cluster, but the security implications of running autonomous AI agents on shared infrastructure have not yet been fully evaluated. Agents that can execute code, access tools, and make network calls present risks that standard Kubernetes workloads do not.
 
-NERC provides the compute infrastructure, multi-tenancy model, and institutional backing that make it a natural fit for offering AI agent capabilities to the research community. Deploying OpenClaw on NERC avoids the need for individual researchers to set up and secure their own AI infrastructure, centralizes security and compliance controls, and provides a shared platform that can serve multiple user groups.
+This project set out to determine the feasibility of securely running OpenClaw on the MOC by building a proof-of-concept security stack. The result is a working defense-in-depth prototype that demonstrates what a production-ready deployment could look like, identifies the remaining gaps, and provides a foundation for the MOC to evaluate whether and how to move forward.
 
 ---
 
 ## 2. Security Posture: What's in Place
 
-The security architecture follows a defense-in-depth model: no single layer is solely responsible for security. If one layer is bypassed, others provide fallback protection.
+### Threat Model
+
+The security stack was designed around four primary threats:
+
+- **Prompt injection:** A malicious user crafts input that manipulates the LLM into bypassing its instructions, executing unintended actions, or revealing system prompts and internal context.
+- **Data exfiltration:** A compromised or manipulated agent sends sensitive data (credentials, user content, internal configuration) to an external attacker-controlled destination.
+- **Lateral movement:** An attacker who gains code execution inside one pod attempts to reach other pods, services, or the Kubernetes API to escalate access.
+- **Credential leakage:** Agent code accesses secrets (API keys, tokens) stored in the gateway's environment and leaks them through LLM responses, tool calls, or network requests.
+
+The defense-in-depth model ensures no single layer is solely responsible for any of these threats. If one layer is bypassed, others provide fallback protection.
 
 ### Deployed Security Layers
 
@@ -49,10 +56,10 @@ The security architecture follows a defense-in-depth model: no single layer is s
 | Egress control | AdminNetworkPolicy | Data exfiltration via non-approved ports |
 | Domain filtering | OVN EgressFirewall | Data exfiltration to non-approved external hosts |
 | Observability | MLflow + OTEL Collector | Undetected guardrail bypasses, forensic gaps |
-| Agent sandboxing | NVIDIA OpenShell | Agent code escaping its execution environment |
-| Self-sandboxing | NemoClaw | Agent access to host filesystem/network (lightweight alternative) |
+| Per-session sandboxing | NVIDIA OpenShell | Agent code escaping to other sessions or the gateway |
+| Whole-pod sandboxing | NemoClaw | Agent access to host filesystem, network, and elevated privileges |
 
-### How the Layers Work Together
+### Request Flow and Always-On Protections
 
 A typical request flows through these layers in sequence:
 
@@ -61,96 +68,107 @@ A typical request flows through these layers in sequence:
 3. **Content safety:** TrustyAI scans for PII and sensitive content using deterministic pattern matching, independent of LLM judgment.
 4. **LLM call:** If the message passes both checks, it is forwarded to Claude via LiteLLM.
 5. **Output guardrails:** The LLM's response is evaluated by NeMo's output rails before being returned to the user.
-6. **Network isolation:** Even if an attacker gains code execution inside a pod, NetworkPolicies prevent lateral movement, AdminNetworkPolicy restricts egress ports, and EgressFirewall limits which external domains are reachable.
-7. **Observability:** Every LLM interaction is traced end-to-end with token usage, cost, latency, and full request/response content, enabling detection of guardrail bypasses and forensic investigation.
-8. **Sandboxing:** When an agent executes code, it runs in an isolated pod (OpenShell) or a restricted container (NemoClaw), not inside the gateway.
+
+Independent of the request flow, three always-on protections operate continuously:
+
+- **Network isolation:** NetworkPolicies prevent lateral pod-to-pod movement, AdminNetworkPolicy restricts egress ports, and EgressFirewall limits which external domains are reachable — regardless of whether a request is in flight.
+- **Observability:** Every LLM interaction is traced end-to-end with token usage, cost, latency, and full request/response content, enabling detection of guardrail bypasses and forensic investigation.
+- **Sandboxing:** When an agent executes code, it runs in an isolated disposable pod (OpenShell) or within a locked-down gateway container (NemoClaw), not with full access to the host.
 
 ### Test Results
 
-The guardrails system was validated against a suite of adversarial test cases:
+The guardrails system was validated against a targeted set of adversarial test cases as a proof-of-concept, not a comprehensive test suite:
 
 - **7 out of 7** malicious inputs were blocked, including jailbreak attempts, prompt injection, requests for explicit content, abusive language, and PII extraction. All returned a fixed refusal message; the LLM was never called.
 - **2 out of 2** safe inputs passed through normally with expected Claude responses, confirming that the guardrails do not over-block legitimate use.
 - **PII detection** successfully identifies email addresses, Social Security numbers, credit card numbers, phone numbers, person names, and physical addresses with a configurable confidence threshold.
 
-Full test details and screenshots are available in the [openclaw-guardrails repository](docs/nemo-guardrails.md).
+A production deployment would require broader adversarial testing across a wider range of attack patterns and edge cases. Full test details and screenshots are available in the [NeMo Guardrails documentation](nemo-guardrails.md).
 
 ---
 
 ## 3. What's Not Yet in Place
 
-Two security layers are planned but not yet deployed on NERC:
+Three security gaps remain, in order of priority:
 
-| Layer | Technology | Status | Path Forward |
-|-------|-----------|--------|--------------|
-| Secrets management | HashiCorp Vault via ESO | Planned | External Secrets Operator is already installed cluster-wide. An external Vault instance can be connected without requiring cluster-admin permissions. |
-| Tool governance | MCP Gateway | Planned | Awaiting general availability from upstream. Kuadrant (the underlying policy engine) is already available on OpenShift. |
+| Layer | Status | Path Forward |
+|-------|--------|--------------|
+| Credential isolation | Partially addressed | Evaluate OpenShell's built-in credential proxy; Kagenti for multi-tenant scoping |
+| Secrets at rest | Not yet implemented | Move from base64-encoded K8s Secrets to encrypted, audited storage |
+| Tool governance | Awaiting upstream GA | Identity-based tool filtering via MCP Gateway |
 
-**Secrets management** is the higher priority gap. Currently, six secrets (API keys, SSH credentials, LiteLLM master key) are stored as base64-encoded Kubernetes Secrets. While functional, this provides no audit trail, no automatic rotation, and relies on etcd encryption-at-rest configuration. The recommended path is to use the already-installed External Secrets Operator to sync from an external Vault instance, which requires no elevated cluster permissions.
+### Credential Isolation (High Priority)
 
-**Tool governance** will become important as OpenClaw's MCP tool ecosystem grows and multiple user groups share the platform. MCP Gateway will provide identity-based tool filtering and per-tool authorization, ensuring that different users can only access the tools appropriate to their role.
+The core risk is not where secrets are *stored* but whether agent code can *access* them at runtime. The claw-operator already partially addresses this with a MITM credential proxy — the gateway never sees raw LLM API keys, and all outbound traffic is forced through the proxy via NetworkPolicy.
+
+OpenShell may address this further. Its documentation describes an inference routing proxy that injects credentials at the network boundary — agents call a virtual host with placeholder tokens, and real credentials are injected by the proxy without the agent ever seeing them. These capabilities were not fully explored or validated as part of this POC and should be investigated as a next step.
+
+The emerging industry consensus, formalized in the IETF CB4A (Credential Broker for Agents) draft, is that **agents should never hold credentials — a proxy should inject them at the network boundary.** Beyond OpenShell, several other tools implement this pattern and are worth evaluating — particularly for multi-tenant scenarios where different users need different credential scoping:
+
+- **Kagenti (Recommended for multi-tenant)** — Red Hat incubation project providing Kubernetes-native agent lifecycle management with SPIFFE-based workload identity. Agents get cryptographic identities instead of shared API keys, with per-user delegation chains and automatic token exchange. On track for OpenShift AI integration, making it the closest fit for the MOC's OpenShift environment.
+- **Kloak** — Uses eBPF to intercept TLS calls at the kernel level. Applications only see placeholder strings; real secrets are injected at the kernel boundary right before encryption. No sidecars or code changes required.
+- **Infisical Agent Proxy** — Open-source credential broker with presets for common AI services (Anthropic, OpenAI, GitHub). Injects credentials into outbound requests so the agent never holds them.
+- **agentgateway** (Linux Foundation / Solo.io) — Implements the CB4A standard, where a gateway injects credentials at the network boundary based on workload identity.
+
+### Secrets at Rest (Medium Priority)
+
+Currently, six secrets (API keys, SSH credentials, LiteLLM master key) are stored as base64-encoded Kubernetes Secrets. While functional, this provides no audit trail, no automatic rotation, and relies on etcd encryption-at-rest configuration. The recommended path is to use the already-installed External Secrets Operator to sync from the MOC's existing in-cluster Vault instance, which requires no elevated cluster permissions — only a SecretStore CR pointing to the Vault endpoint. This doesn't address runtime credential leakage (that's what credential isolation is for), but it remains an important step for auditing, rotation, and encrypted storage.
+
+### Tool Governance (Future)
+
+MCP Gateway will provide identity-based tool filtering and per-tool authorization, ensuring that different users can only access the tools appropriate to their role. It is currently in developer preview. Kuadrant, the underlying policy engine, is already available on OpenShift.
 
 ---
 
 ## 4. Resource Overhead
 
-The security stack adds resource consumption on top of the base OpenClaw deployment. The table below summarizes the overhead of each layer:
+The security stack adds resource consumption on top of the base OpenClaw deployment. The estimates below were **not benchmarked as part of this POC** unless noted — production sizing would require load testing under realistic conditions.
 
-| Component | CPU Request | Memory Request | Memory Limit | Pods | Storage |
-|-----------|------------|---------------|-------------|------|---------|
-| NeMo Guardrails (sidecar) | Minimal | Included in OpenClaw pod | Included in OpenClaw pod | 0 (sidecar) | None |
-| TrustyAI Orchestrator | ~200m | ~256Mi | ~512Mi | 1 (2 containers) | None |
-| NetworkPolicies | None | None | None | 0 | None |
-| AdminNetworkPolicy | None | None | None | 0 | None |
-| EgressFirewall | None | None | None | 0 | None |
-| OTEL Collector | ~100m | ~128Mi | ~256Mi | 1 | None |
-| MLflow | ~200m | ~1Gi | ~2Gi | 1 | 5Gi PVC |
-| OpenShell (per session) | Variable | Variable | Variable | 1 per active session | None |
-
-**Key takeaways:**
-
-- Network policies (ingress, egress, domain filtering) add **zero** resource overhead. They are enforced by the cluster's CNI plugin at no cost to the namespace.
-- The guardrails infrastructure (NeMo sidecar + TrustyAI + OTEL + MLflow) adds approximately **3 pods** and **~4Gi of memory** to the namespace.
-- OpenShell sandboxing creates ephemeral pods per agent session. Resource usage scales with concurrent active sessions and is bounded by namespace resource quotas.
-- NeMo Guardrails runs as a sidecar within the existing OpenClaw pod, so it does not add a separate pod but does share the pod's resource allocation.
+| Component | Pods | CPU | Memory | Storage | Source |
+|-----------|------|-----|--------|---------|--------|
+| NeMo Guardrails (sidecar) | 0 (sidecar) | 500m-1000m | 1-2Gi | None | NVIDIA docs |
+| TrustyAI Orchestrator | 1 (2 containers) | ~200m | ~256Mi-512Mi | None | Community estimate |
+| NetworkPolicies / ANP / EgressFirewall | 0 | None | None | None | N/A — enforced by CNI |
+| OTEL Collector | 1 | ~100m | ~128-256Mi | None | OpenTelemetry docs |
+| MLflow | 1 | ~200-500m | 2Gi+ | 5Gi PVC (SQLite) | Observed in POC (OOMKilled at 1Gi; SQLite not suitable for multi-user production) |
+| OpenShell (per session) | 1 per session | 2 CPU | 4Gi | None | NVIDIA docs (configurable) |
 
 ### Latency Impact
 
-The guardrails add latency to each LLM request:
+The guardrails add latency to each LLM request, though exact overhead was not benchmarked in this POC:
 
-- **NeMo input rail check:** The LLM itself evaluates whether the input is safe. This adds one additional LLM call before the actual request, typically adding 1-3 seconds depending on model response time.
-- **NeMo output rail check:** Similarly, one additional LLM call after the response, adding 1-3 seconds.
-- **TrustyAI content check:** Pattern-based analysis, typically sub-second.
+- **NeMo input/output rail checks:** Each check makes an additional LLM call to evaluate safety. NVIDIA benchmarks show a range of 50ms-1.5s per check depending on configuration — optimized NIM classifiers sit at the low end, while LLM-based self-check (used in this POC) sits at the high end.
+- **TrustyAI content check:** Pattern-based analysis, expected to be sub-second.
 
-For most use cases (research, coursework, exploratory agent tasks), this added latency is acceptable. For latency-sensitive applications, the guardrails configuration can be tuned — for example, disabling output rails while keeping input rails, or adjusting the self-check prompts for faster evaluation.
+For most use cases (research, coursework, exploratory agent tasks), added latency from guardrails is likely acceptable. For latency-sensitive applications, the guardrails configuration can be tuned — for example, disabling output rails while keeping input rails, switching to faster classifier models, or adjusting the self-check prompts. A production deployment should benchmark latency under realistic load.
 
 ---
 
-## 5. What the MOC Needs to Provide
+## 5. Areas Requiring MOC Involvement
 
-The current security stack was built entirely within namespace-level permissions, with one exception: the AdminNetworkPolicy and EgressFirewall were deployed through the [nerc-ocp-config](https://github.com/OCP-on-NERC/nerc-ocp-config) repository via ArgoCD with cluster-admin assistance. Going forward, the MOC would need to provide or approve the following:
+The current security stack was built entirely within namespace-level permissions, with one exception: the AdminNetworkPolicy and EgressFirewall were deployed through the [nerc-ocp-config](https://github.com/OCP-on-NERC/nerc-ocp-config) repository via ArgoCD with cluster-admin assistance. Moving beyond the POC would require additional cluster-admin support and policy decisions.
 
-### Cluster-Admin Actions Required
+### Cluster-Admin Actions
 
 | Action | Why It's Needed | Effort |
 |--------|----------------|--------|
 | Maintain AdminNetworkPolicy for OpenClaw namespaces | Egress control cannot be enforced at namespace level alone. ANPs are cluster-scoped and require cluster-admin to create/modify. | Low — already templated, needs replication per namespace |
-| Maintain EgressFirewall per namespace | DNS-based domain filtering is namespace-scoped but requires OVN-Kubernetes configuration. | Low — already templated |
-| Grant `anyuid` SCC for Vault namespace (if in-cluster Vault is pursued) | Vault containers require a specific non-root UID. | One-time |
-| Grant privileged SCC for OpenShell namespace (if per-session sandboxing is needed) | OpenShell init containers set up kernel-level isolation. | One-time |
-| ClusterRoleBinding for Vault's Kubernetes auth (if in-cluster Vault is pursued) | Vault needs TokenReview API access to authenticate pods by their service account. | One-time |
+| Maintain EgressFirewall per namespace | DNS-based domain filtering requires applying a CR per namespace. | Low — already templated |
+| Grant privileged SCC for OpenShell namespace | OpenShell init containers set up kernel-level isolation for per-session sandboxing. | One-time |
+| Configure ESO SecretStore | The External Secrets Operator is already installed cluster-wide; a SecretStore CR pointing to the MOC's existing in-cluster Vault instance needs to be created. | One-time |
+| Support for credential isolation tooling (if pursued) | Tools like Kagenti may require SPIRE server deployment, mutating webhook configuration, or additional ClusterRoleBindings. | TBD — depends on tool selected |
 
-### Policy Decisions Needed
+### Questions to Answer Before Moving Forward
 
-1. **Approval to run AI agent workloads on NERC.** OpenClaw enables LLM-powered agents that can execute code and use external tools. The MOC should determine whether this class of workload is appropriate for the NERC and under what conditions.
+1. **Is this class of workload acceptable?** OpenClaw enables LLM-powered agents that can execute code and use external tools. The MOC should determine whether autonomous AI agent workloads are appropriate for the shared cluster and under what conditions.
 
-2. **Multi-tenancy model.** If OpenClaw is offered to multiple user groups (researchers, courses, startups), the MOC should decide whether each group gets a dedicated namespace with its own security stack, or whether a shared deployment with role-based access is preferred.
+2. **What multi-tenancy model?** If OpenClaw is offered to multiple user groups (researchers, courses, startups), should each group get a dedicated namespace with its own security stack, or should a shared deployment with role-based access be preferred?
 
-3. **Model provider policy.** The current deployment uses Claude on Vertex AI via GCP. The MOC should determine whether this model provider is acceptable, whether alternative providers should be supported, and who is responsible for the API costs.
+3. **Which model providers are acceptable?** The current deployment uses Claude on Vertex AI via GCP. Are alternative providers needed? Who is responsible for API costs?
 
-4. **Data handling policy.** LLM requests and responses pass through Google's Vertex AI infrastructure. The MOC should evaluate whether this is acceptable for the types of data NERC users will process, particularly for research involving sensitive or regulated data.
+4. **What are the data handling requirements?** LLM requests and responses pass through Google's Vertex AI infrastructure. Is this acceptable for the types of data users will process, particularly research involving sensitive or regulated data?
 
-5. **Incident response.** The observability stack (MLflow traces) provides forensic capability, but the MOC should define who is responsible for monitoring traces, responding to guardrail bypass incidents, and updating safety policies.
+5. **Who owns incident response?** The observability stack (MLflow traces) provides forensic capability, but who is responsible for monitoring traces, responding to guardrail bypass incidents, and updating safety policies?
 
 ---
 
@@ -168,11 +186,11 @@ NeMo Guardrails uses the LLM itself to evaluate safety. This means:
 Without cluster-admin access, namespace users cannot:
 
 - Create or modify AdminNetworkPolicies or EgressFirewalls
-- Install operators (TrustyAI, ESO are already available cluster-wide)
-- Grant SCCs required for Vault or OpenShell
+- Grant SCCs required for OpenShell
+- Install additional operators if needed in the future
 - Access the cluster's Tempo backend for centralized tracing (RBAC and mTLS constraints)
 
-This means the security posture is partially dependent on cluster-admin cooperation. The current workaround (in-namespace MLflow instead of cluster Tempo, ESO instead of in-cluster Vault) is functional but represents a tradeoff.
+This means the security posture is partially dependent on cluster-admin cooperation. The current workaround (in-namespace MLflow instead of cluster Tempo) is functional but represents a tradeoff.
 
 ### Maintenance Burden
 
@@ -184,36 +202,37 @@ The security stack requires ongoing attention:
 - **OpenShell** versions must match exactly between the CLI and Helm chart; upgrades require coordination.
 - **MLflow** storage will grow over time and needs monitoring/rotation.
 
-An estimated **2-4 hours per month** of maintenance should be budgeted for routine updates and monitoring, with additional time for incident response or major version upgrades.
+Maintenance effort was not formally estimated as part of this POC, but the number of moving parts suggests it is non-trivial and should be factored into any adoption decision.
 
 ### Latency Overhead
 
-As noted in Section 4, the guardrails add 2-6 seconds of latency per LLM request due to the input and output self-check calls. This is acceptable for interactive use but may be a concern for batch or automated workflows. The configuration is tunable per deployment.
+The guardrails add latency to each LLM request (see Section 4 for details). This should be benchmarked under realistic load before production use, particularly for batch or automated workflows where added latency compounds.
 
 ---
 
-## 7. Recommendation
+## 7. Conclusion
 
-**Deploy OpenClaw on NERC as a supported platform for AI agent workloads, with the security stack documented in this project.**
-
-The security architecture addresses the three core risks identified at the project's outset:
+This POC demonstrates that securely running OpenClaw on the MOC is feasible. The defense-in-depth security stack addresses the three core risks identified at the project's outset:
 
 1. **Resource access:** Network isolation (NetworkPolicies + AdminNetworkPolicy + EgressFirewall) constrains what agents can reach. Agent sandboxing (OpenShell or NemoClaw) constrains what agents can do on the host.
-2. **Secret keeping:** Secrets are isolated by network policy today and have a clear upgrade path to Vault via the already-installed External Secrets Operator.
+2. **Credential leakage:** The claw-operator's credential proxy keeps LLM API keys away from the gateway. OpenShell's inference routing proxy likely provides stronger isolation at the sandbox level, though this was not validated in the POC. A clear path exists to the MOC's existing Vault instance via ESO for secrets at rest.
 3. **Prompt injection:** NeMo Guardrails and TrustyAI provide two independent layers of input/output screening, and the observability stack enables detection of bypasses.
 
-This recommendation is conditional on the MOC addressing the policy decisions in Section 5. The technical infrastructure is in place; what remains is governance.
+The POC is not production-ready — credential isolation, resource benchmarking, and tool governance remain open. But the foundation is in place, and the remaining gaps have clear paths forward.
 
 ### Suggested Next Steps
 
-1. **MOC policy review** of Sections 5 and 6 to determine which conditions can be met and which require further discussion.
-2. **Pilot deployment** for a single research group or course to validate the security posture in a real multi-user scenario before broader rollout.
-3. **Secrets management deployment** using ESO + external Vault as the first post-adoption enhancement.
-4. **MCP Gateway evaluation** when it reaches general availability, to enable tool-level governance for multi-tenant use.
+1. **MOC policy review** of Sections 5 and 6 to determine which questions can be answered and which require further discussion.
+2. **Evaluate OpenShell's credential isolation** — validate the inference routing proxy and placeholder token system to determine if it meets the MOC's requirements, or whether additional tooling (e.g., Kagenti) is needed for multi-tenant credential scoping.
+3. **Pilot deployment** for a single research group or course to validate the security posture in a real multi-user scenario and benchmark resource and latency overhead.
+4. **Secrets at rest** — configure ESO to sync from the MOC's existing Vault instance.
+5. **MCP Gateway evaluation** when it reaches general availability, to enable tool-level governance for multi-tenant use.
 
 ---
 
 ## Appendix A: Detailed Architecture
+
+All documentation and configuration templates are available in the [openclaw-guardrails](https://github.com/svuppala2006/openclaw-guardrails) repository. Configuration templates use placeholder values and contain no credentials.
 
 For full technical details on each security layer, see the following documentation:
 
@@ -239,12 +258,9 @@ Over the course of this project, several approaches were tried that did not work
 | NeMo's built-in jailbreak heuristics | Requires PyTorch, which is not in the container image | Used LLM-based self-check flows instead |
 | Embedding-based flow matching in NeMo | Requires HuggingFace model downloads, blocked by EgressFirewall | Switched to keyword-based (`simple`) provider |
 | Cluster Tempo for tracing | NetworkPolicy and mTLS constraints prevent namespace-level access | Deployed in-namespace MLflow as alternative |
-| In-cluster Vault deployment | Requires `anyuid` SCC and ClusterRoleBindings (cluster-admin) | Identified ESO + external Vault as alternative |
+| In-cluster Vault deployment | Requires `anyuid` SCC and ClusterRoleBindings (cluster-admin) | Identified ESO + MOC's existing Vault instance as alternative |
 | Standard OTLP port 4317 | Blocked by AdminNetworkPolicy | OTEL Collector listens on port 8080 instead |
 | Presidio PII detection via LiteLLM hooks | Egress to Presidio pods blocked by ANP; hooks failed silently | Superseded by TrustyAI's built-in detector |
 
 These failures informed the final architecture. Each workaround is documented to prevent future teams from re-encountering the same issues and to illustrate the constraints of operating within namespace-level permissions on a shared cluster.
 
-## Appendix C: Repository
-
-All configuration templates, documentation, and the NeMo Guardrails proxy are available in the [openclaw-guardrails](https://github.com/) repository. Configuration templates use placeholder values and contain no credentials.
